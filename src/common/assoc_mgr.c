@@ -2352,6 +2352,7 @@ extern List assoc_mgr_get_shares(void *db_conn,
 		share->grp_cpu_mins = assoc->grp_cpu_mins;
 		share->cpu_run_mins = assoc->usage->grp_used_cpu_run_secs / 60;
 		share->priority_fs_raw = assoc->usage->priority_fs_raw;
+		share->priority_fs_ranked = assoc->usage->priority_fs_ranked;
 
 		if (assoc->user) {
 			/* We only calculate user effective usage when

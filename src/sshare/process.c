@@ -80,12 +80,13 @@ extern int process(shares_response_msg_t *resp)
 		return SLURM_ERROR;
 
 	format_list = list_create(slurm_destroy_char);
-	if(flags & PRIORITY_FLAGS_LEVEL_BASED) {
+	if (flags & PRIORITY_FLAGS_LEVEL_BASED) {
 		if (long_flag) {
 			slurm_addto_char_list(format_list,
 					      "A,User,RawShares,NormShares,"
 					      "RawUsage,NormUsage,EffUsage,"
-					      "FSFctr,FSRaw,GrpCPUMins,CPURunMins");
+					      "FSFctr,FSRaw,GrpCPUMins,"
+					      "CPURunMins");
 		} else {
 			slurm_addto_char_list(format_list,
 					      "A,User,RawShares,NormShares,"
@@ -242,7 +243,25 @@ extern int process(shares_response_msg_t *resp)
 						     (curr_inx == field_count));
 				break;
 			case PRINT_FSFACTOR:
-				field->print_routine(field,
+				if (flags & PRIORITY_FLAGS_LEVEL_BASED) {
+					if(share->user)
+						field->print_routine(
+						field,
+						(double) NORMALIZE_VALUE(
+							share->priority_fs_ranked,
+							0, UINT64_MAX,
+							0.0l, 1.0l
+						),
+						(curr_inx == field_count));
+					else
+						print_fields_str(
+							field,
+							NULL,
+							(curr_inx == field_count)
+						);
+				}
+				else
+					field->print_routine(field,
 						     priority_g_calc_fs_factor(
 							     (long double)
 							     share->usage_efctv,

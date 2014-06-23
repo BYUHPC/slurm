@@ -2006,6 +2006,10 @@ static void _pack_assoc_shares_object(void *in, Buf buffer,
 		pack64(object->cpu_run_mins, buffer);
 		pack64(object->priority_fs_raw, buffer);
 
+		pack64(object->grp_cpu_mins, buffer);
+		pack64(object->cpu_run_mins, buffer);
+		pack64(object->priority_fs_ranked, buffer);
+
 		pack16(object->user, buffer);
 	} else {
 		error("_pack_assoc_shares_object: protocol_version "
@@ -2041,6 +2045,10 @@ static int _unpack_assoc_shares_object(void **object, Buf buffer,
 		safe_unpack64(&object_ptr->grp_cpu_mins, buffer);
 		safe_unpack64(&object_ptr->cpu_run_mins, buffer);
 		safe_unpack64(&object_ptr->priority_fs_raw, buffer);
+
+		safe_unpack64(&object_ptr->grp_cpu_mins, buffer);
+		safe_unpack64(&object_ptr->cpu_run_mins, buffer);
+		safe_unpack64(&object_ptr->priority_fs_ranked, buffer);
 
 		safe_unpack16(&object_ptr->user, buffer);
 	} else {
