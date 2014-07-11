@@ -2841,7 +2841,7 @@ void dump_job_desc(job_desc_msg_t * job_specs)
 {
 	long job_id, time_min;
 	long pn_min_cpus, pn_min_memory, pn_min_tmp_disk, min_cpus;
-	long time_limit, priority, contiguous;
+	long time_limit, priority, contiguous, nice;
 	long kill_on_node_fail, shared, immediate, wait_all_nodes;
 	long cpus_per_task, requeue, num_tasks, overcommit;
 	long ntasks_per_node, ntasks_per_socket, ntasks_per_core;
@@ -2973,10 +2973,11 @@ void dump_job_desc(job_desc_msg_t * job_specs)
 		(long) job_specs->num_tasks : -1L;
 	overcommit = (job_specs->overcommit != (uint8_t) NO_VAL) ?
 		(long) job_specs->overcommit : -1L;
-	debug3("   mail_type=%u mail_user=%s nice=%d num_tasks=%ld "
+	nice = (job_specs->nice != (uint16_t) NO_VAL) ?
+		(job_specs->nice - NICE_OFFSET) : 0;
+	debug3("   mail_type=%u mail_user=%s nice=%ld num_tasks=%ld "
 	       "open_mode=%u overcommit=%ld acctg_freq=%s",
-	       job_specs->mail_type, job_specs->mail_user,
-	       (int)job_specs->nice - NICE_OFFSET, num_tasks,
+	       job_specs->mail_type, job_specs->mail_user, nice, num_tasks,
 	       job_specs->open_mode, overcommit, job_specs->acctg_freq);
 
 	slurm_make_time_str(&job_specs->begin_time, buf, sizeof(buf));
@@ -3707,6 +3708,7 @@ _signal_batch_job(struct job_record *job_ptr, uint16_t signal)
 	bitoff_t i;
 	kill_tasks_msg_t *kill_tasks_msg = NULL;
 	agent_arg_t *agent_args = NULL;
+	uint32_t z;
 
 	xassert(job_ptr);
 	xassert(job_ptr->batch_host);
@@ -3734,7 +3736,13 @@ _signal_batch_job(struct job_record *job_ptr, uint16_t signal)
 	kill_tasks_msg = xmalloc(sizeof(kill_tasks_msg_t));
 	kill_tasks_msg->job_id      = job_ptr->job_id;
 	kill_tasks_msg->job_step_id = NO_VAL;
-	kill_tasks_msg->signal      = signal;
+	/* Encode the KILL_JOB_BATCH flag for
+	 * stepd to know if has to signal only
+	 * the batch script. The job was submitted
+	 * using the --signal=B:sig sbatch option.
+	 */
+	z = KILL_JOB_BATCH << 24;
+	kill_tasks_msg->signal = z|signal;
 
 	agent_args->msg_args = kill_tasks_msg;
 	agent_args->node_count = 1;/* slurm/477 be sure to update node_count */
@@ -3805,8 +3813,11 @@ extern int job_complete(uint32_t job_id, uid_t uid, bool requeue,
 		return ESLURM_INVALID_JOB_ID;
 	}
 
-	if (IS_JOB_FINISHED(job_ptr))
+	if (IS_JOB_FINISHED(job_ptr)) {
+		if (job_ptr->exit_code == 0)
+			job_ptr->exit_code = job_return_code;
 		return ESLURM_ALREADY_DONE;
+	}
 
 	if ((job_ptr->user_id != uid) && !validate_slurm_user(uid)) {
 		error("Security violation, JOB_COMPLETE RPC for job %u "
@@ -3827,7 +3838,8 @@ extern int job_complete(uint32_t job_id, uid_t uid, bool requeue,
 
 	if ((job_return_code == NO_VAL) &&
 	    (IS_JOB_RUNNING(job_ptr) || IS_JOB_PENDING(job_ptr))) {
-		info("Job %u cancelled from interactive user", job_ptr->job_id);
+		info("Job %u cancelled from interactive user or node failure",
+		     job_ptr->job_id);
 	}
 
 	if (IS_JOB_SUSPENDED(job_ptr)) {
@@ -4061,7 +4073,6 @@ static int _part_access_check(struct part_record *part_ptr,
 	}
 
 	if (slurmctld_conf.enforce_part_limits) {
-		info("checking here");
 		if ((rc = part_policy_valid_acct(part_ptr, acct))
 		    != SLURM_SUCCESS)
 			goto fini;
@@ -6998,6 +7009,26 @@ static void _pack_default_job_details(struct job_record *job_ptr,
 	char *cmd_line = NULL;
 	char *tmp = NULL;
 	uint32_t len = 0;
+	uint16_t shared = 0;
+
+	if (!detail_ptr)
+		shared = (uint16_t) NO_VAL;
+	else if (detail_ptr->share_res == 1)	/* User --share */
+		shared = 1;
+	else if ((detail_ptr->share_res == 0) ||
+		 (detail_ptr->whole_node == 1))	/* User --exclusive */
+		shared = 0;
+	else if (job_ptr->part_ptr) {
+		/* Report shared status based upon latest partition info */
+		if ((job_ptr->part_ptr->max_share & SHARED_FORCE) &&
+		    ((job_ptr->part_ptr->max_share & (~SHARED_FORCE)) > 1))
+			shared = 1;		/* Partition Shared=force */
+		else if (job_ptr->part_ptr->max_share == 0)
+			shared = 0;		/* Partition Shared=exclusive */
+		else
+			shared = 0;		/* Part Shared=yes or no */
+	} else
+		shared = (uint16_t) NO_VAL;	/* No user or partition info */
 
 	if (max_cpu_cnt == -1)
 		max_cpu_cnt = _find_node_max_cpu_cnt();
@@ -7068,6 +7099,7 @@ static void _pack_default_job_details(struct job_record *job_ptr,
 			}
 			pack16(detail_ptr->requeue,   buffer);
 			pack16(detail_ptr->ntasks_per_node, buffer);
+			pack16(shared, buffer);
 		} else {
 			packnull(buffer);
 			packnull(buffer);
@@ -7082,6 +7114,7 @@ static void _pack_default_job_details(struct job_record *job_ptr,
 
 			pack32(job_ptr->node_cnt, buffer);
 			pack32((uint32_t) 0, buffer);
+			pack16((uint16_t) 0, buffer);
 			pack16((uint16_t) 0, buffer);
 			pack16((uint16_t) 0, buffer);
 		}
@@ -7139,6 +7172,7 @@ static void _pack_default_job_details(struct job_record *job_ptr,
 				pack32(detail_ptr->max_nodes, buffer);
 			}
 			pack16(detail_ptr->requeue,   buffer);
+			pack16(shared, buffer);
 		} else {
 			packnull(buffer);
 			packnull(buffer);
@@ -7154,6 +7188,7 @@ static void _pack_default_job_details(struct job_record *job_ptr,
 			pack32(job_ptr->node_cnt, buffer);
 			pack32((uint32_t) 0, buffer);
 			pack16((uint16_t) 0, buffer);
+			pack16((uint16_t) 0, buffer);
 		}
 	} else {
 		error("_pack_default_job_details: protocol_version "
@@ -7165,20 +7200,8 @@ static void _pack_default_job_details(struct job_record *job_ptr,
 static void _pack_pending_job_details(struct job_details *detail_ptr,
 				      Buf buffer, uint16_t protocol_version)
 {
-	uint16_t shared = 0;
-
-	if (!detail_ptr)
-		shared = (uint16_t) NO_VAL;
-	else if (detail_ptr->share_res == 1)
-		shared = 1;
-	else if (detail_ptr->whole_node == 1)
-		shared = 0;
-	else
-		shared = (uint16_t) NO_VAL;
-
 	if (protocol_version >= SLURM_14_03_PROTOCOL_VERSION) {
 		if (detail_ptr) {
-			pack16(shared, buffer);
 			pack16(detail_ptr->contiguous, buffer);
 			pack16(detail_ptr->core_spec, buffer);
 			pack16(detail_ptr->cpus_per_task, buffer);
@@ -7204,7 +7227,6 @@ static void _pack_pending_job_details(struct job_details *detail_ptr,
 			pack16((uint16_t) 0, buffer);
 			pack16((uint16_t) 0, buffer);
 			pack16((uint16_t) 0, buffer);
-			pack16((uint16_t) 0, buffer);
 
 			pack32((uint32_t) 0, buffer);
 			pack32((uint32_t) 0, buffer);
@@ -7222,7 +7244,6 @@ static void _pack_pending_job_details(struct job_details *detail_ptr,
 		}
 	} else if (protocol_version >= SLURM_2_5_PROTOCOL_VERSION) {
 		if (detail_ptr) {
-			pack16(shared, buffer);
 			pack16(detail_ptr->contiguous, buffer);
 			pack16(detail_ptr->cpus_per_task, buffer);
 			pack16(detail_ptr->pn_min_cpus, buffer);
@@ -7239,7 +7260,6 @@ static void _pack_pending_job_details(struct job_details *detail_ptr,
 			pack_multi_core_data(detail_ptr->mc_ptr, buffer,
 					     protocol_version);
 		} else {
-			pack16((uint16_t) 0, buffer);
 			pack16((uint16_t) 0, buffer);
 			pack16((uint16_t) 0, buffer);
 			pack16((uint16_t) 0, buffer);
@@ -7716,8 +7736,9 @@ static bool _top_priority(struct job_record *job_ptr)
 
 	if ((!top) && detail_ptr) {	/* not top prio */
 		if (job_ptr->priority == 0) {		/* user/admin hold */
-			if ((job_ptr->state_reason != WAIT_HELD) &&
-			    (job_ptr->state_reason != WAIT_HELD_USER)) {
+			if (job_ptr->state_reason != FAIL_BAD_CONSTRAINTS
+			    && (job_ptr->state_reason != WAIT_HELD)
+			    && (job_ptr->state_reason != WAIT_HELD_USER)) {
 				job_ptr->state_reason = WAIT_HELD;
 				xfree(job_ptr->state_desc);
 			}
@@ -9531,8 +9552,8 @@ static void _send_job_kill(struct job_record *job_ptr)
 	if (agent_args->node_count == 0) {
 		if ((job_ptr->details->expanding_jobid == 0) &&
 		    (select_serial == 0)) {
-			error("Job %u allocated no nodes to be killed on",
-			      job_ptr->job_id);
+			error("%s: job %u allocated no nodes to be killed on",
+			      __func__, job_ptr->job_id);
 		}
 		xfree(kill_job->nodes);
 		xfree(kill_job);
@@ -10258,14 +10279,12 @@ extern bool job_epilog_complete(uint32_t job_id, char *node_name,
  * subsequent jobs appear in a separate accounting record. */
 void batch_requeue_fini(struct job_record  *job_ptr)
 {
-	time_t now;
-
 	if (IS_JOB_COMPLETING(job_ptr) ||
 	    !IS_JOB_PENDING(job_ptr) || !job_ptr->batch_flag)
 		return;
 
 	info("requeue batch job %u", job_ptr->job_id);
-	now = time(NULL);
+
 	/* Clear everything so this appears to be a new job and then restart
 	 * it in accounting. */
 	job_ptr->start_time = 0;
@@ -10289,14 +10308,14 @@ void batch_requeue_fini(struct job_record  *job_ptr)
 	FREE_NULL_BITMAP(job_ptr->node_bitmap);
 	FREE_NULL_BITMAP(job_ptr->node_bitmap_cg);
 	if (job_ptr->details) {
+		time_t now = time(NULL);
 		/* the time stamp on the new batch launch credential must be
 		 * larger than the time stamp on the revoke request. Also the
 		 * I/O must be all cleared out and the named socket purged,
 		 * so delay for at least ten seconds. */
 		if (job_ptr->details->begin_time <= now)
 			job_ptr->details->begin_time = now + 10;
-		if (!with_slurmdbd)
-			jobacct_storage_g_job_start(acct_db_conn, job_ptr);
+
 		/* Since this could happen on a launch we need to make sure the
 		 * submit isn't the same as the last submit so put now + 1 so
 		 * we get different records in the database */
@@ -10308,6 +10327,8 @@ void batch_requeue_fini(struct job_record  *job_ptr)
 	/* Reset this after the batch step has finished or the batch step
 	 * information will be attributed to the next run of the job. */
 	job_ptr->db_index = 0;
+	if (!with_slurmdbd)
+		jobacct_storage_g_job_start(acct_db_conn, job_ptr);
 }
 
 
@@ -10965,7 +10986,12 @@ extern int job_requeue(uid_t uid,
 		goto reply;
 	}
 
-	if ((job_ptr->details == NULL) || (job_ptr->details->requeue == 0)) {
+	/* If the partition was removed don't allow the job to be
+	 * requeued.  If it doesn't have details then something is very
+	 * wrong and if the job doesn't want to be requeued don't.
+	 */
+	if (!job_ptr->part_ptr || !job_ptr->details
+	    || !job_ptr->details->requeue) {
 		rc = ESLURM_DISABLED;
 		goto reply;
 	}
@@ -11000,7 +11026,7 @@ extern int job_requeue(uid_t uid,
 		/* we can't have it as suspended when we call the
 		 * accounting stuff.
 		 */
-		job_ptr->job_state = JOB_CANCELLED;
+		job_ptr->job_state = JOB_REQUEUE;
 		jobacct_storage_g_job_suspend(acct_db_conn, job_ptr);
 		job_ptr->job_state = suspend_job_state;
 		suspended = true;
@@ -11021,10 +11047,10 @@ extern int job_requeue(uid_t uid,
 	    || IS_JOB_RUNNING(job_ptr))
 		is_running = true;
 
-	/* We want this job to look like it was cancelled in the
+	/* We want this job to have the requeued state in the
 	 * accounting logs. Set a new submit time so the restarted
 	 * job looks like a new job. */
-	job_ptr->job_state  = JOB_CANCELLED;
+	job_ptr->job_state  = JOB_REQUEUE;
 	build_cg_bitmap(job_ptr);
 	job_completion_logger(job_ptr, true);
 
@@ -12080,7 +12106,7 @@ extern void job_hold_requeue(struct job_record *job_ptr)
 	      job_ptr->state_reason, job_ptr->priority);
 }
 
-/* Reset a job's end-time based upon it's end_time.
+/* Reset a job's end_time based upon it's start_time and time_limit.
  * NOTE: Do not reset the end_time if already being preempted */
 extern void job_end_time_reset(struct job_record  *job_ptr)
 {

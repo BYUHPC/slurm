@@ -3,8 +3,86 @@ documents those changes that are of interest to users and admins.
 
 * Changes in Slurm 14.03.5
 ==========================
- -- Enlarge the width specifier when printing partition SHARE
-    to display larger sharing values.
+ -- If a srun runs in an exclusive allocation and doesn't use the entire
+    allocation and CR_PACK_NODES is set layout tasks appropriately.
+ -- Correct Shared field in job state information seen by scontrol, sview, etc.
+ -- Print Slurm error string in scontrol update job and reset the Slurm errno
+    before each call to the API.
+ -- Fix task/cgroup to handle -mblock:fcyclic correctly
+ -- Fix for core-based advanced reservations where the distribution of cores
+    across nodes is not even.
+ -- Fix issue where association maxnodes wouldn't be evaluated correctly if a
+    QOS had a GrpNodes set.
+ -- GRES fix with multiple files defined per line in gres.conf.
+ -- When a job is requeued make sure accounting marks it as such.
+ -- Print the state of requeued job as REQUEUED.
+ -- Fix if a job's partition was taken away from it don't allow a requeue.
+ -- Make sure we lock on the conf when sending slurmd's conf to the slurmstepd.
+ -- Fix issue with sacctmgr 'load' not able to gracefully handle bad formatted
+    file.
+ -- sched/backfill: Correct job start time estimate with advanced reservations.
+ -- Error message added when in proctrack/cgroup the step freezer path isn't
+    able to be destroyed for debug.
+ -- Added extra index's into the database for better performance when
+    deleting users.
+ -- Fix issue with wckeys when tracking wckeys, but not enforcing them,
+    you could get multiple '*' wckeys.
+ -- Fix bug which could report to squeue the wrong partition for a running job
+    that is submitted to multiple partitions.
+ -- Report correct CPU count allocated to job when allocated whole node even if
+    not using all CPUs.
+ -- If job's constraints cannot be satisfied put it in pending state with reason
+    BadConstraints and don't remove it.
+ -- sched/backfill - If job started with infinite time limit, set its end_time
+    one year in the future.
+ -- Clear record of a job's gres when requeued.
+ -- Clear QOS GrpUsedCPUs when resetting raw usage if QOS is not using any cpus.
+ -- Remove log message left over from debugging.
+ -- When using CR_PACK_NODES fix make --ntasks-per-node work correctly.
+ -- Report correct partition associated with a step if the job is submitted to
+    multiple partitions.
+ -- Fix to allow removing of preemption from a QOS
+ -- If the proctrack plugins fail to destroy the job container print an error
+    message and avoid to loop forever, give up after 120 seconds.
+ -- Make srun obey POSIX convention and increase the exit code by 128 when the
+    process terminated by a signal.
+ -- Sanity check for acct_gather_energy/rapl
+ -- If the proctrack plugins fail to destroy the job container print an error
+    message and avoid to loop forever, give up after 120 seconds.
+ -- If the sbatch command specifies the option --signal=B:signum sent the signal
+    to the batch script only.
+ -- If we cancel a task and we have no other exit code send the signal and
+    exit code.
+ -- Added note about InnoDB storage engine being used with MySQL.
+ -- Set the job exit code when the job is signaled and set the log level to
+    debug2() when processing an already completed job.
+ -- Reset diagnostics time stamp when "sdiag --reset" is called.
+ -- squeue and scontrol to report a job's "shared" value based upon partition
+    options rather than reporting "unknown" if job submission does not use
+    --exclusive or --shared option.
+ -- task/cgroup - Fix cpuset binding for batch script.
+ -- sched/backfill - Fix anomaly that could result in jobs being scheduled out
+    of order.
+ -- Expand pseudo-terminal size data structure field sizes from 8 to 16 bits.
+ -- Set the job exit code when the job is signaled and set the log level to
+    debug2() when processing an already completed job.
+ -- Distinguish between two identical error messages.
+ -- If using accounting_storage/mysql directly without a DBD fix issue with
+    start of requeued jobs.
+ -- If a job fails because of batch node failure and the job is requeued and an
+    epilog complete message comes from that node do not process the batch step
+    information since the job has already been requeued because the epilog
+    script running isn't guaranteed in this situation.
+ -- Change message to note a NO_VAL for return code could of come from node
+    failure as well as interactive user.
+ -- Modify test4.5 to only look at one partition instead of all of them.
+ -- Fix sh5util -u to accept username different from the user that runs the
+    command.
+ -- Corrections to man pages:salloc.1 sbatch.1 srun.1 nonstop.conf.5
+    slurm.conf.5.
+ -- Restore srun --pty resize ability.
+ -- Have sacctmgr dump cluster handle situations where users or such have
+    special characters in their names like ':'
 
 * Changes in Slurm 14.03.4
 ==========================
@@ -94,8 +172,8 @@ documents those changes that are of interest to users and admins.
     is already running.
  -- Email messages for job array events print now use the job ID using the
     format "#_# (#)" rather than just the internal job ID.
- -- Set the number of free licenses to be 0 if the global license count decreases
-    and total is less than in use.
+ -- Set the number of free licenses to be 0 if the global license count
+    decreases and total is less than in use.
  -- Add DebugFlag of BackfillMap. Previously a DebugFlag value of Backfill
     logged information about what it was doing plus a map of expected resouce
     use in the future. Now that very verbose resource use map is only logged
@@ -112,6 +190,10 @@ documents those changes that are of interest to users and admins.
  -- If DebugFlags=Protocol is configured in slurm.conf print details of the
     connection, ip address and port accepted by the controller.
  -- Fix minor memory leak when reading in incomplete node data checkpoint file.
+ -- Enlarge the width specifier when printing partition SHARE to display larger
+    sharing values.
+ -- sinfo locks added to prevent possibly duplicate record printing for
+    resources in multiple partitions.
 
 * Changes in Slurm 14.03.3-2
 ============================
@@ -562,6 +644,8 @@ documents those changes that are of interest to users and admins.
  -- Properly enforce job --requeue and --norequeue options.
  -- If a job --mem-per-cpu limit exceeds the partition or system limit, then
     scale the job's memory limit and CPUs per task to satisfy the limit.
+ -- Correct logic to support Power7 processor with 1 or 2 threads per core
+    (CPU IDs are not consecutive).
 
 * Changes in Slurm 2.6.9
 ========================

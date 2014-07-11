@@ -285,6 +285,8 @@ int _slurm_cgroup_destroy(void)
 
 	if (jobstep_cgroup_path[0] != '\0') {
 		if (xcgroup_delete(&step_freezer_cg) != XCGROUP_SUCCESS) {
+			error("_slurm_cgroup_destroy: problem deleting step "
+			      "cgroup path %s: %m", step_freezer_cg.path);
 			xcgroup_unlock(&freezer_cg);
 			return SLURM_ERROR;
 		}
@@ -584,8 +586,10 @@ extern int proctrack_p_wait(uint64_t cont_id)
 		if (delay < 120) {
 			delay *= 2;
 		} else {
-			error("Unable to destroy container %"PRIu64"",
-			      cont_id);
+			error("%s: Unable to destroy container %"PRIu64" "
+			      "in cgroup plugin, giving up after %d sec",
+			      __func__, cont_id, delay);
+			break;
 		}
 	}
 

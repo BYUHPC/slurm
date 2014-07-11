@@ -1059,9 +1059,12 @@ static int _job_expand(struct job_record *from_job_ptr,
 				}
 			}
 		}
-
-		to_job_ptr->total_cpus += new_job_resrcs_ptr->
-					  cpus[new_node_offset];
+		if (to_job_ptr->details->whole_node) {
+			to_job_ptr->total_cpus += select_node_record[i].cpus;
+		} else {
+			to_job_ptr->total_cpus += new_job_resrcs_ptr->
+						  cpus[new_node_offset];
+		}
 	}
 	build_job_resources_cpu_array(new_job_resrcs_ptr);
 	gres_plugin_job_merge(from_job_ptr->gres_list,
@@ -2618,7 +2621,7 @@ bitstr_t *_sequential_pick(bitstr_t *avail_bitmap, uint32_t node_cnt,
 {
 	bitstr_t *sp_avail_bitmap;
 	char str[300];
-	uint32_t cores_per_node = 0;
+	uint32_t cores_per_node = 0, extra_cores_needed = 0;
 	bitstr_t *tmpcore;
 	int total_core_cnt = 0;
 
@@ -2634,10 +2637,12 @@ bitstr_t *_sequential_pick(bitstr_t *avail_bitmap, uint32_t node_cnt,
 	 */
 
 	if ((node_cnt) && (core_cnt)) {
-		debug2("reserving %u cores per node in %d nodes",
-			cores_per_node, node_cnt);
 		total_core_cnt = core_cnt[0];
 		cores_per_node = core_cnt[0] / MAX(node_cnt, 1);
+		debug2("Reserving %u cores across %d nodes",
+			total_core_cnt, node_cnt);
+		extra_cores_needed = total_core_cnt -
+				     (cores_per_node * node_cnt);
 	}
 	if ((!node_cnt) && (core_cnt)) {
 		int num_nodes = bit_set_count(avail_bitmap);
@@ -2648,7 +2653,8 @@ bitstr_t *_sequential_pick(bitstr_t *avail_bitmap, uint32_t node_cnt,
 			total_core_cnt += core_cnt[i];
 	}
 
-	debug2("Reservations requires %d cores", total_core_cnt);
+	debug2("Reservations requires %d cores (%u each on %d nodes, plus %u)",
+	       total_core_cnt, cores_per_node, node_cnt, extra_cores_needed);
 
 	sp_avail_bitmap = bit_alloc(bit_size(avail_bitmap));
 	bit_fmt(str, (sizeof(str) - 1), avail_bitmap);
@@ -2718,8 +2724,11 @@ bitstr_t *_sequential_pick(bitstr_t *avail_bitmap, uint32_t node_cnt,
 					bit_set(*core_bitmap, coff + i);
 					total_core_cnt--;
 					cores_in_node++;
-					if ((cores_in_node == cores_per_node) ||
-					    (total_core_cnt == 0))
+					if (cores_in_node > cores_per_node)
+						extra_cores_needed--;
+					if ((total_core_cnt == 0) ||
+					    ((extra_cores_needed == 0) &&
+					     (cores_in_node >= cores_per_node)))
 						break;
 				}
 			}

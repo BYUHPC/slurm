@@ -1733,7 +1733,7 @@ extern int create_resv(resv_desc_msg_t *resv_desc_ptr)
 		}
 	}
 
-	/* Sort the list of jobs in descending order */
+	/* Sort the list of node counts in order descending size */
 	if (resv_desc_ptr->node_cnt) {
 		for (i = 0; resv_desc_ptr->node_cnt[i]; i++) {
 			int max_inx = i;
@@ -1867,6 +1867,13 @@ extern int create_resv(resv_desc_msg_t *resv_desc_ptr)
 		/* Get count of allocated nodes, on BlueGene systems, this
 		 * might be more than requested */
 		total_node_cnt = bit_set_count(node_bitmap);
+	}
+
+	if (resv_desc_ptr->core_cnt && !core_bitmap) {
+		info("Attempt to reserve cores not possible with current "
+		     "configuration");
+		rc = ESLURM_INVALID_CPU_COUNT;
+		goto bad_parse;
 	}
 
 	_generate_resv_id();
@@ -3140,13 +3147,14 @@ static int  _select_nodes(resv_desc_msg_t *resv_desc_ptr,
 		bit_and(node_bitmap, avail_node_bitmap);
 	}
 
-	/* If *resv_bitmap exists we probably don't need to delete it,
-	   when it gets created off of node_bitmap it will be the
-	   same, but just to be safe we do. */
+	/* If *resv_bitmap exists we probably don't need to delete it, when it
+	 * gets created off of node_bitmap it will be the same, but just to be
+	 * safe we do. */
 	FREE_NULL_BITMAP(*resv_bitmap);
-	if (rc == SLURM_SUCCESS)
+	if (rc == SLURM_SUCCESS) {
 		*resv_bitmap = _pick_idle_nodes(node_bitmap,
 						resv_desc_ptr, core_bitmap);
+	}
 	FREE_NULL_BITMAP(node_bitmap);
 	if (*resv_bitmap == NULL) {
 		if (rc == SLURM_SUCCESS)
@@ -3154,8 +3162,7 @@ static int  _select_nodes(resv_desc_msg_t *resv_desc_ptr,
 		return rc;
 	}
 
-	/* Same thing as the *resv_bitmap, might as well keep them in
-	   sync */
+	/* Same thing as the *resv_bitmap, might as well keep them in sync */
 	xfree(resv_desc_ptr->node_list);
 	resv_desc_ptr->node_list = bitmap2node_name(*resv_bitmap);
 
@@ -3859,15 +3866,16 @@ extern int job_test_resv(struct job_record *job_ptr, time_t *when,
 			if ((resv_ptr->full_nodes) ||
 			    (job_ptr->details->whole_node)) {
 #if _DEBUG
-				info("reservation uses full nodes or job will "
-				     "not share nodes");
+				info("reservation %s uses full nodes or job %u "
+				     "will not share nodes",
+				     resv_ptr->name, job_ptr->job_id);
 #endif
 				bit_not(resv_ptr->node_bitmap);
 				bit_and(*node_bitmap, resv_ptr->node_bitmap);
 				bit_not(resv_ptr->node_bitmap);
 			} else {
 #if _DEBUG
-				info("job_test_resv: %s reservation uses "
+				info("job_test_resv: reservation %s uses "
 				     "partial nodes", resv_ptr->name);
 #endif
 				if (*exc_core_bitmap == NULL) {

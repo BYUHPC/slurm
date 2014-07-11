@@ -148,7 +148,7 @@ static uint32_t	_get_gres_cnt(char *orig_config, char *gres_name,
 static uint32_t	_get_tot_gres_cnt(uint32_t plugin_id, uint32_t *set_cnt);
 static int	_gres_find_id(void *x, void *key);
 static void	_gres_job_list_delete(void *list_element);
-extern int	_job_alloc(void *job_gres_data, void *node_gres_data,
+static int	_job_alloc(void *job_gres_data, void *node_gres_data,
 			   int node_cnt, int node_offset, uint32_t cpu_cnt,
 			   char *gres_name, uint32_t job_id, char *node_name,
 			   bitstr_t *core_bitmap);
@@ -166,7 +166,7 @@ static void *	_job_state_dup(void *gres_data);
 static void *	_job_state_dup2(void *gres_data, int node_index);
 static int	_job_state_validate(char *config, void **gres_data,
 				    slurm_gres_context_t *gres_name);
-extern uint32_t	_job_test(void *job_gres_data, void *node_gres_data,
+static uint32_t	_job_test(void *job_gres_data, void *node_gres_data,
 			  bool use_total_gres, bitstr_t *cpu_bitmap,
 			  int cpu_start_bit, int cpu_end_bit, bool *topo_set,
 			  uint32_t job_id, char *node_name, char *gres_name);
@@ -1423,12 +1423,12 @@ extern int _node_config_validate(char *node_name, char *orig_config,
 		gres_data->topo_gres_cnt_avail =
 			xrealloc(gres_data->topo_gres_cnt_avail,
 				 set_cnt * sizeof(uint32_t));
-		for (i=0; i<gres_data->topo_cnt; i++)
+		for (i = 0; i < gres_data->topo_cnt; i++)
 			FREE_NULL_BITMAP(gres_data->topo_gres_bitmap[i]);
 		gres_data->topo_gres_bitmap =
 			xrealloc(gres_data->topo_gres_bitmap,
 				 set_cnt * sizeof(bitstr_t *));
-		for (i=0; i<gres_data->topo_cnt; i++)
+		for (i = 0; i < gres_data->topo_cnt; i++)
 			FREE_NULL_BITMAP(gres_data->topo_cpus_bitmap[i]);
 		gres_data->topo_cpus_bitmap =
 			xrealloc(gres_data->topo_cpus_bitmap,
@@ -2584,7 +2584,7 @@ static void	_job_core_filter(void *job_gres_data, void *node_gres_data,
 	FREE_NULL_BITMAP(avail_cpu_bitmap);
 }
 
-extern uint32_t _job_test(void *job_gres_data, void *node_gres_data,
+static uint32_t _job_test(void *job_gres_data, void *node_gres_data,
 			  bool use_total_gres, bitstr_t *cpu_bitmap,
 			  int cpu_start_bit, int cpu_end_bit, bool *topo_set,
 			  uint32_t job_id, char *node_name, char *gres_name)
@@ -2904,18 +2904,55 @@ extern uint32_t gres_plugin_job_test(List job_gres_list, List node_gres_list,
 static bool _cores_on_gres(bitstr_t *core_bitmap,
 			   gres_node_state_t *node_gres_ptr, int gres_inx)
 {
+	int i;
+
 	if ((core_bitmap == NULL) || (node_gres_ptr->topo_cnt == 0))
 		return true;
 
-	if (bit_size(node_gres_ptr->topo_cpus_bitmap[gres_inx]) !=
-	    bit_size(core_bitmap))
-		return false;
-	if (bit_overlap(node_gres_ptr->topo_cpus_bitmap[gres_inx], core_bitmap))
-		return true;
+	for (i = 0; i < node_gres_ptr->topo_cnt; i++) {
+		if (bit_size(node_gres_ptr->topo_gres_bitmap[i]) < gres_inx)
+			continue;
+		if (!bit_test(node_gres_ptr->topo_gres_bitmap[i], gres_inx))
+			continue;
+		if (bit_size(node_gres_ptr->topo_cpus_bitmap[i]) !=
+		    bit_size(core_bitmap))
+			break;
+		if (bit_overlap(node_gres_ptr->topo_cpus_bitmap[i],core_bitmap))
+			return true;
+	}
 	return false;
 }
 
-extern int _job_alloc(void *job_gres_data, void *node_gres_data,
+/* Clear any vestigial job gres state. This may be needed on job requeue. */
+extern void gres_plugin_job_clear(List job_gres_list)
+{
+	int i;
+	ListIterator job_gres_iter;
+	gres_state_t *job_gres_ptr;
+	gres_job_state_t *job_state_ptr;
+
+	if (job_gres_list == NULL)
+		return;
+
+	(void) gres_plugin_init();
+	job_gres_iter = list_iterator_create(job_gres_list);
+	while ((job_gres_ptr = (gres_state_t *) list_next(job_gres_iter))) {
+		if (!job_gres_ptr)
+			continue;
+		job_state_ptr = (gres_job_state_t *) job_gres_ptr->gres_data;
+		for (i = 0; i < job_state_ptr->node_cnt; i++) {
+			FREE_NULL_BITMAP(job_state_ptr->gres_bit_alloc[i]);
+			FREE_NULL_BITMAP(job_state_ptr->gres_bit_step_alloc[i]);
+		}
+		xfree(job_state_ptr->gres_bit_alloc);
+		xfree(job_state_ptr->gres_bit_step_alloc);
+		xfree(job_state_ptr->gres_cnt_step_alloc);
+	}
+	job_state_ptr->node_cnt = 0;
+	list_iterator_destroy(job_gres_iter);
+}
+
+static int _job_alloc(void *job_gres_data, void *node_gres_data,
 		      int node_cnt, int node_offset, uint32_t cpu_cnt,
 		      char *gres_name, uint32_t job_id, char *node_name,
 		      bitstr_t *core_bitmap)

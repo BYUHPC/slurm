@@ -1798,8 +1798,15 @@ static void _slurm_rpc_complete_batch_script(slurm_msg_t * msg)
 		return;
 	}
 
-	/* Send batch step info to accounting */
-	if (association_based_accounting && job_ptr) {
+	/* Send batch step info to accounting, only if the job is
+	 * still completing.  If the job was requeued because of node
+	 * failure (state == pending) an epilog script might not of
+	 * ran so we already finished the last instance of the job so
+	 * this would be put on the requeued instance which is
+	 * incorrect.
+	 */
+	if (association_based_accounting && job_ptr
+	    && !IS_JOB_PENDING(job_ptr)) {
 		struct step_record batch_step;
 		memset(&batch_step, 0, sizeof(struct step_record));
 		batch_step.job_ptr = job_ptr;
@@ -1925,9 +1932,9 @@ static void _slurm_rpc_complete_batch_script(slurm_msg_t * msg)
 
 	/* return result */
 	if (error_code) {
-		info("_slurm_rpc_complete_batch_script JobId=%u: %s ",
-		     comp_msg->job_id,
-		     slurm_strerror(error_code));
+		debug2("_slurm_rpc_complete_batch_script JobId=%u: %s ",
+		       comp_msg->job_id,
+		       slurm_strerror(error_code));
 		slurm_send_rc_msg(msg, error_code);
 	} else {
 		debug2("_slurm_rpc_complete_batch_script JobId=%u %s",

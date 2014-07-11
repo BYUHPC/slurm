@@ -200,7 +200,7 @@ static int _get_gres_alloc(struct job_record *job_ptr)
 /*
  * _get_gres_config - Fill in the gres_alloc string field for a given
  *      job_record with the count of gres on each node (e.g. for whole node
- *	allocations.
+ *	allocations).
  * IN job_ptr - the job record whose "gres_alloc" field is to be constructed
  * RET Error number.  Currently not used (always set to 0).
  */
@@ -602,8 +602,8 @@ extern void deallocate_nodes(struct job_record *job_ptr, bool timeout,
 	if (agent_args->node_count == 0) {
 		if ((job_ptr->details->expanding_jobid == 0) &&
 		    (select_serial == 0)) {
-			error("Job %u allocated no nodes to be killed on",
-			      job_ptr->job_id);
+			error("%s: job %u allocated no nodes to be killed on",
+			      __func__, job_ptr->job_id);
 		}
 		slurm_free_kill_job_msg(kill_job);
 		hostlist_destroy(agent_args->hostlist);
@@ -1591,8 +1591,9 @@ extern int select_nodes(struct job_record *job_ptr, bool test_only,
 	}
 
 	if (job_ptr->priority == 0) {	/* user/admin hold */
-		if ((job_ptr->state_reason != WAIT_HELD) &&
-		    (job_ptr->state_reason != WAIT_HELD_USER)) {
+		if (job_ptr->state_reason != FAIL_BAD_CONSTRAINTS
+		    && (job_ptr->state_reason != WAIT_HELD)
+		    && (job_ptr->state_reason != WAIT_HELD_USER)) {
 			job_ptr->state_reason = WAIT_HELD;
 		}
 		return ESLURM_JOB_HELD;
@@ -1798,6 +1799,7 @@ extern int select_nodes(struct job_record *job_ptr, bool test_only,
 	select_bitmap = NULL;	/* nothing left to free */
 	allocate_nodes(job_ptr);
 	build_node_details(job_ptr, true);
+	rebuild_job_part_list(job_ptr);
 
 	/* This could be set in the select plugin so we want to keep
 	   the flag. */
