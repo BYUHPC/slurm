@@ -1,4 +1,4 @@
-# Slurm 14.03.4-2 + LEVEL_BASED
+# Slurm 14.03.5 + LEVEL_BASED
 
 This Slurm fork contains the code for the LEVEL_BASED prioritization mechanism.  It has been submitted for inclusion in Slurm 14.11.
 
@@ -12,7 +12,9 @@ This Slurm fork contains the code for the LEVEL_BASED prioritization mechanism. 
 
 ### Version
 
-The *level_based* branch was branched from *slurm-14.03* when 14.03.4-2 was tagged, meaning you get all the features of 14.03.4-2 plus the LEVEL_BASED code.
+Current version:  14.03.5 + LEVEL_BASED code.
+
+Original version:  The *level_based* branch was originally branched from *slurm-14.03* when 14.03.4-2 was tagged and has since had updates merged in.
 
 Future changes from *slurm-14.03* will likely be merged when minor versions are released by SchedMD.  Contact us if you want to be informed of future releases or check back a few days after a new Slurm minor release.
 
