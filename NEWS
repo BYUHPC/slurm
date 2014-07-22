@@ -1,6 +1,24 @@
 This file describes changes in recent versions of Slurm. It primarily
 documents those changes that are of interest to users and admins.
 
+* Changes in Slurm 14.03.6
+==========================
+ -- Added examples to demonstrate the use of the sacct -T option to the man
+    page.
+ -- Fix for regression in 14.03.5 with sacctmgr load when Parent has "'"
+    around it.
+ -- Update comments in sacctmgr dump header.
+ -- Fix for possible abort on change in GRES configuration.
+ -- CRAY - fix modules file, (backport from 14.11 commit 78fe86192b.
+ -- Fix race condition which could result in requeue if batch job exit and node
+    registration occur at the same time.
+ -- switch/nrt - Unload job tables (in addition to windows) in user space mode.
+ -- Differentiate between two identical debug messages about purging vestigial
+    job scripts.
+ -- If the socket used by slurmstepd to communicate with slurmd exist when
+    slurmstepd attempts to create it, for example left over from a previous
+    requeue or crash, delete it and recreate it.
+
 * Changes in Slurm 14.03.5
 ==========================
  -- If a srun runs in an exclusive allocation and doesn't use the entire
@@ -83,6 +101,8 @@ documents those changes that are of interest to users and admins.
  -- Restore srun --pty resize ability.
  -- Have sacctmgr dump cluster handle situations where users or such have
     special characters in their names like ':'
+ -- Add more debugging for information should the job ran on wrong node
+    and should there be problems accessing the state files.
 
 * Changes in Slurm 14.03.4
 ==========================
