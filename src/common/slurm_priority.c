@@ -172,3 +172,21 @@ extern void priority_g_job_end(struct job_record *job_ptr)
 	(*(ops.job_end))(job_ptr);
 }
 
+/* Linear interpolation from fraction f to range a..b */
+extern long double lerp(long double min, long double max, long double f)
+{
+	xassert(f >= 0L);
+	xassert(f <= 1L);
+
+	/* The following equation is mathematically equivalent to:
+	 * a + f * (b - a)
+	 *
+	 * However, floating point math will cause problems with certain inputs
+	 * to the simplified equation.
+	 *
+	 * For example: lerp(-16.0e30, 16.0, 1.0) will return 0
+	 */
+
+	return min * (1.0L - f) + max * f;
+}
+

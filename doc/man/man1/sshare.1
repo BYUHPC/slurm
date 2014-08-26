@@ -121,8 +121,8 @@ This takes into consideration time limit of running jobs and consumes it,
 if the limit is reached no new jobs are started until other jobs finish
 to allow time to free up.
 
-.SH "LEVEL_BASED MODIFICATIONS"
-When PriorityFlags=LEVEL_BASED is set, calculations are done differently.
+.SH "FAIR_TREE MODIFICATIONS"
+When PriorityFlags=FAIR_TREE is set, calculations are done differently.
 As a result, the following fields are added or modified:
 
 .TP
@@ -132,16 +132,16 @@ number of assigned shares within the level.
 
 .TP
 \f3Norm Usage\fP
-Norm Usage is not used by LEVEL_BASED but is displayed anyway.
+Norm Usage is not used by Fair Tree but is displayed anyway.
 
 .TP
 \f3Effectv Usage\fP
 Effectv Usage is the association's usage normalized with its parent.
 
 .TP
-\f3FairShare Raw\fP (only appears with \fBsshare \-l\fR option)
-This hexadecimal number is the final fair share factor value before the
-algorithm sorts and ranks users.
+\f3Level FS\fP (only appears with \fBsshare \-l\fR option)
+This is the association's fairshare value at its level in the association
+tree, calculated based on Norm Shares and Effectv Usage.
 
 .SH "EXAMPLES"
 .eo

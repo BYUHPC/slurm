@@ -1,0 +1,193 @@
+<!--#include virtual="header.txt"-->
+
+<!--
+
+Fair Tree contributed by Brigham Young University
+Authors: Ryan Cox and Levi Morrison
+
+ -->
+
+<h1>Fair Tree Fairshare Algorithm</h1>
+
+<h2>Contents</h2>
+<ul>
+<li><a href="#intro">Introduction</a></li>
+<li><a href="#algorithm">Algorithm</a></li>
+<li><a href="#fairshare">Fair share factor calculation</a></li>
+<li><a href="#normalization">Normalization of shares</a></li>
+<li><a href="#ties">Ties</a></li>
+<li><a href="#sshare">sshare</a></li>
+<li><a href="#config">Configuration</a></li>
+<li><a href="#notes">Important notes</a></li>
+</ul>
+
+<h2><a name="intro">Introduction</a></h2>
+
+<p>PriorityFlags=FAIR_TREE results in changes to several fair share
+calculations. The algorithm prioritizes users such that users in an under-served
+account will always have a higher fair share factor than users in an over-served
+account.</p>
+
+<p>Some of the benefits include:</p>
+<ul>
+	<li>
+		All users from a higher priority account receive a higher fair
+		share factor than all users from a lower priority account.
+	</li>
+	<li>
+		Users are sorted and ranked to prevent errors due to precision
+		loss. Ties are allowed.
+	</li>
+	<li>
+		Account coordinators cannot accidentally harm the priority of
+		their users relative to users in other accounts.
+	</li>
+	<li>
+		Users are extremely unlikely to have exactly the same fair share
+		factor as another user due to loss of precision in calculations.
+	</li>
+	<li>
+		New jobs are immediately assigned a priority.
+	</li>
+</ul>
+
+<h2><a name="algorithm">Algorithm</a></h2>
+
+<p>Fairshare is calculated for each association only considering the shares and
+usage of it and its siblings (stored as level_fs). A
+<a href="http://www.math.ucsd.edu/~ebender/CombText/ch-9.pdf">
+rooted plane tree</a> <small>(PDF download)</small>, also known as a rooted
+ordered tree, is logically created then sorted by fairshare with the highest
+fairshare values on the left. The tree is then visited in a depth-first
+traversal.  Users are ranked in pre-order as they are found. The ranking is
+used to create the final fairshare factor for the user.</p>
+
+<p>The algorithm performs a single traversal of the tree since all the steps
+can be combined. The very basic idea is to start at root then:</p>
+
+<ul><li>Calculate level_fs for the subtree's children</li>
+<li>Sort children of subtree</li>
+<li>Visit the children in order</li>
+<ul><li>If user, assign a final fairshare factor similar to (ranking-- / user_assoc_count)</li>
+<li>If account, descend to account</li>
+</ul></ul>
+
+
+<h2><a name="fairshare">Fair share factor calculation</a></h2>
+
+<p>As the Fair Tree algorithm descends through the association hierarchy, it
+calculates fair share in a similar way to the traditional multifactor method
+except that it does so at each level in the hierarchy and normalizes <i>S</i>
+beforehand.
+<pre>
+F = 2**(-U/S)
+</pre>
+
+<dl>
+<dt> F</dt>
+<dd> is the association's fair share factor at the current level</dd>
+<dt> U</dt>
+<dd> also known as Usage Effective, U is the association's normalized usage at
+the current level</dd>
+<dt> S</dt>
+<dd> is the association's normalized shares at the current level</dd>
+</dl>
+
+<p>All values above are between zero and one.</p>
+
+<p>See the original <a href="priority_multifactor.html">multifactor plugin</a>
+for more information on this calculation.</p>
+
+
+<h2 id="normalization">Normalization of shares before fair share calculation</h2>
+
+<p>One major modification to the calculation of <i>F</i> is that the Fair Tree
+algorithm normalizes the <i>S</i> value between 0.1 and 1.0 prior to the fair
+share calculation. This is done because a low <i>S</i> value can result in an
+<i>F</i> value that is approximately 0, even when <i>U</i> is small. An example
+of this behavior can be visualized by comparing an unnormalized <i>S</i> value
+between
+<a href="http://www.wolframalpha.com/input/?i=2%5E-%28u%2Fs%29%2C+u+from+0+to+1%2C+s+from+0+to+1">
+0.0 and 1.0</a> to a normalized <i>S</i> value between
+<a href="http://www.wolframalpha.com/input/?i=2%5E-%28u%2Fs%29%2C+u+from+0+to+1%2C+s+from+.1+to+1">
+0.1 and 1.0</a>.</p>
+
+<p>Assuming 150 associations at the same level and with equal Fairshare values
+set in sacctmgr, <i>S</i> is 0.0067. When plugged into the equation, <i>F</i>
+values are often indistinguishable from each other when <i>U</i> is high.
+Compare the unnormalized
+<a href="http://www.wolframalpha.com/input/?i=2%5E-%28u%2F0.0067%29%2C+u+from+0+to+1">
+S=0.0067</a> to a worst case
+<a href="http://www.wolframalpha.com/input/?i=2%5E-%28u%2F.1%29%2C+u+from+0+to+1">
+S=0.1</a> when the value is normalized before <i>F</i> is calculated.</p>
+
+<p>The general formula used to normalize <i>S</i> is a linear interpolation,
+which maps fraction f in <code>0.0 .. 1.0</code> to range <code>a .. b</code>,
+represented by <code>lerp</code> below. A different but mathematically
+equivalent equation is used to mitigate floating point imprecision.</p>
+
+<pre>lerp(a, b, f) =  a + f * (b - a)</pre>
+
+
+<h2><a name="ties">Ties</a></h2>
+
+<p>Ties are handled as follows:
+<ul>
+<li>Sibling users with the same level_fs receive the same rank</li>
+<li>A user with the same level_fs as a sibling account will receive the same
+rank as its highest ranked user</li>
+<li>Sibling accounts with the same level_fs have their children lists merged
+</li>
+</ul>
+</p>
+
+<h2><a name="sshare">sshare</a></h2>
+
+<p>sshare was modified to show the <i>level_fs</i> value as <i>Level FS</i> when
+the <i>-l</i> (long) parameter is specified.  The field shows the value for each
+association, thus allowing users to see the results of the fair share
+calculation at each level.</p>
+
+<p>Note: Norm Usage is not used by Fair Tree but is still displayed.</p>
+
+<h2><a name="config">Configuration</a></h2>
+
+<p> The following slurm.conf (SLURM_CONFIG_FILE) parameters are used to
+configure the Fair Tree algorithm.  See slurm.conf(5) man page for more
+details.</p>
+
+<dl>
+<dt>PriorityFlags</dt>
+<dd>Set to "FAIR_TREE".</dd>
+<dt>PriorityType</dt>
+<dd>Set this value to "priority/multifactor".
+The default value for this variable is "priority/basic"
+which enables simple FIFO scheduling.</dd>
+<dt>PriorityCalcPeriod</dt>
+<dd>PriorityCalcPeriod is the frequency in minutes that job half-life decay
+and Fair Tree calculations are performed.</dd>
+</dl>
+
+<h2><a name="notes">Important Notes</a></h2>
+<ul>
+<li>As the Fair Tree algorithm ranks all users, active or not, the
+administrator must carefully consider how to apply other priority weights
+in the priority/multifactor plugin. The <i>PriorityWeightFairshare</i> can be
+usefully set to a much smaller value than usual, possibly as low as 1 or 2 times
+the number of user associations.
+</li>
+<li>Fair Tree requires the <a href="accounting.html">Slurm Accounting
+Database</a> to provide the assigned shares and the consumed,
+computing resources described below.
+</li>
+<li><i>scontrol reconfigure</i> does not cause the Fair Tree algorithm to
+run immediately, even if switching from a different algorithm. You may have to
+wait until the next iteration as defined by <i>PriorityCalcPeriod</i>.
+</li>
+</ul>
+
+
+<!-- -------------------------------------------------------------------- -->
+<p style="text-align:center;">Last modified 28 Aug 2014</p>
+
+<!--#include virtual="footer.txt"-->
