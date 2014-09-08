@@ -59,7 +59,7 @@ extern void fair_tree_decay(List jobs, time_t start)
 	list_for_each(jobs, (ListForF) _ft_decay_apply_new_usage, &start);
 	unlock_slurmctld(job_write_lock);
 
-	/* calculate priority for associations */
+	/* calculate fs factor for associations */
 	assoc_mgr_lock(&locks);
 	_apply_priority_fs();
 	assoc_mgr_unlock(&locks);
@@ -126,7 +126,7 @@ static void _ft_debug(slurmdb_association_rec_t *assoc,
 
 
 /* Sort so that higher level_fs values are first in the list */
-static int _sort_priority_fs(slurmdb_association_rec_t **x,
+static int _sort_level_fs(slurmdb_association_rec_t **x,
 					 slurmdb_association_rec_t **y)
 {
 	/* We sort based on the following critereon:
@@ -254,7 +254,7 @@ static void _calc_tree_fs(List children_list, uint16_t assoc_level,
 
 	/* Sort children by level_fs. children_list was passed in as a copy so
 	 * sorting it is safe */
-	list_sort(children_list, (ListCmpF) _sort_priority_fs);
+	list_sort(children_list, (ListCmpF) _sort_level_fs);
 
 	/* Iterate through children in sorted order. If it's a user, calculate
 	 * fs_factor, otherwise recurse. */

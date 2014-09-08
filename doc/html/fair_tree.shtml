@@ -12,9 +12,10 @@ Authors: Ryan Cox and Levi Morrison
 <h2>Contents</h2>
 <ul>
 <li><a href="#intro">Introduction</a></li>
+<li><a href="#enduser">Overview for End Users</a></li>
 <li><a href="#algorithm">Algorithm</a></li>
-<li><a href="#fairshare">Fair share factor calculation</a></li>
-<li><a href="#normalization">Normalization of shares</a></li>
+<li><a href="#fairshare">Level Fairshare Calculation</a></li>
+<li><a href="#normalization">Linear Interpolation of Shares</a></li>
 <li><a href="#ties">Ties</a></li>
 <li><a href="#sshare">sshare</a></li>
 <li><a href="#config">Configuration</a></li>
@@ -23,10 +24,10 @@ Authors: Ryan Cox and Levi Morrison
 
 <h2><a name="intro">Introduction</a></h2>
 
-<p>PriorityFlags=FAIR_TREE results in changes to several fair share
-calculations. The algorithm prioritizes users such that users in an under-served
-account will always have a higher fair share factor than users in an over-served
-account.</p>
+<p>PriorityFlags=FAIR_TREE results in changes to several fairshare calculations.
+Fair Tree prioritizes users such that if accounts A and B are siblings and A has
+a higher fairshare factor than B, all children of A will have higher fairshare
+factors than all children of B.</p>
 
 <p>Some of the benefits include:</p>
 <ul>
@@ -43,7 +44,7 @@ account.</p>
 		their users relative to users in other accounts.
 	</li>
 	<li>
-		Users are extremely unlikely to have exactly the same fair share
+		Users are extremely unlikely to have exactly the same fairshare
 		factor as another user due to loss of precision in calculations.
 	</li>
 	<li>
@@ -51,75 +52,117 @@ account.</p>
 	</li>
 </ul>
 
+<h2><a name="enduser">Overview for End Users</a></h2>
+
+<p>This section is intended for non-admin users who just want to know how their
+fairshare factor is determined.  Run <code>sshare -l</code> (lowercase "L") to
+view the following columns: <code>FairShare, Level FS</code>.
+
+<p>If an account has a higher Level FS value than any other sibling user or
+sibling account, all children of that account will have a higher FairShare value
+than the children of the other account. This is true at every level of the
+association tree.</p>
+
+<p>The FairShare value is obtained by using the Fair Tree
+<a href="#algorithm">algorithm</a> to rank all users in the order that they
+should be prioritized (descending). The FairShare value is the user's rank
+divided by the total number of user associations. The highest ranked user
+receives a 1.0 fairshare value.</p>
+
+<p>If you (UserA) have a lower FairShare value than another user (UserB) and
+want to know why, find the first common ancestor account. At the level
+below the common ancestor, compare the Level FS value of your ancestor to the
+Level FS value of UserB's ancestor. Your ancestor has a lower Level FS value
+than UserB's ancestor. For information on how Level FS value is
+calculated, read the section about the <a href="#fairshare">Level FS
+equation</a>.</p>
+
+<p>For example, assume the association tree contains UserA and UserB as
+follows:</p>
+<pre>
+root =&gt; Acct1 =&gt; Acct12 =&gt; UserA
+root =&gt; Acct1 =&gt; Acct16 =&gt; UserB
+</pre>
+
+<p>Acct1 is the first common ancestor of UserA and UserB. Check the Level FS
+values of Acct12 and Acct16.  If UserB has a higher FairShare value than UserA,
+Acct16 has a higher Level FS value than Acct12.</p>
+
+<p>The sections below contain more information about the algorithm, including
+how the final fairshare factor and the Level FS values are calculated.</p>
+
 <h2><a name="algorithm">Algorithm</a></h2>
 
-<p>Fairshare is calculated for each association only considering the shares and
-usage of it and its siblings (stored as level_fs). A
-<a href="http://www.math.ucsd.edu/~ebender/CombText/ch-9.pdf">
+<p>An equation is used to calculate a Level Fairshare value for each
+association, only considering the shares and usage of itself and its siblings.
+A <a href="http://www.math.ucsd.edu/~ebender/CombText/ch-9.pdf">
 rooted plane tree</a> <small>(PDF download)</small>, also known as a rooted
-ordered tree, is logically created then sorted by fairshare with the highest
-fairshare values on the left. The tree is then visited in a depth-first
-traversal.  Users are ranked in pre-order as they are found. The ranking is
+ordered tree, is logically created then sorted by Level Fairshare with the
+highest values on the left. The tree is then visited in a depth-first
+traversal. Users are ranked in pre-order as they are found. The ranking is
 used to create the final fairshare factor for the user.</p>
 
 <p>The algorithm performs a single traversal of the tree since all the steps
-can be combined. The very basic idea is to start at root then:</p>
+can be combined. The basic idea is to set <i>rank</i> equal to the count of user
+associations then start at root:</p>
 
-<ul><li>Calculate level_fs for the subtree's children</li>
-<li>Sort children of subtree</li>
-<li>Visit the children in order</li>
-<ul><li>If user, assign a final fairshare factor similar to (ranking-- / user_assoc_count)</li>
+<ul><li>Calculate Level Fairshare for the subtree's children</li>
+<li>Sort children of the subtree</li>
+<li>Visit the children in descending order</li>
+<ul><li>If user, assign a final fairshare factor similar to
+	(rank-- / user_assoc_count)</li>
 <li>If account, descend to account</li>
 </ul></ul>
 
 
-<h2><a name="fairshare">Fair share factor calculation</a></h2>
+<h2><a name="fairshare">Level Fairshare Calculation</a></h2>
 
 <p>As the Fair Tree algorithm descends through the association hierarchy, it
-calculates fair share in a similar way to the traditional multifactor method
-except that it does so at each level in the hierarchy and normalizes <i>S</i>
-beforehand.
+calculates Level Fairshare in a way similar to the traditional multifactor
+method's Fairshare calculation.  However, Level Fairshare only considers an
+association and its siblings. One additional modification is discussed in the
+next section.
 <pre>
-F = 2**(-U/S)
+LF = 2**-(U/S)
 </pre>
 
 <dl>
-<dt> F</dt>
-<dd> is the association's fair share factor at the current level</dd>
+<dt>LF</dt>
+<dd> is the association's Level Fairshare</dd>
 <dt> U</dt>
-<dd> also known as Usage Effective, U is the association's normalized usage at
-the current level</dd>
+<dd> also known as Effective Usage, U is the association's usage normalized to
+the account's usage:
+<nobr><code>U = Uraw<sub>self</sub> / Uraw<sub>self+siblings</sub></code></nobr>
+</dd>
 <dt> S</dt>
-<dd> is the association's normalized shares at the current level</dd>
+<dd> also known as Shares Norm, S is the association's assigned shares
+normalized to the shares assigned to itself and its siblings:
+<nobr><code>S = Sraw<sub>self</sub> / Sraw<sub>self+siblings</sub></code></nobr>
+</dd>
 </dl>
 
-<p>All values above are between zero and one.</p>
+<p>All values above are in the range <code>0.0 .. 1.0</code>.</p>
 
 <p>See the original <a href="priority_multifactor.html">multifactor plugin</a>
 for more information on this calculation.</p>
 
 
-<h2 id="normalization">Normalization of shares before fair share calculation</h2>
+<h2 id="normalization">Linear Interpolation of Shares</h2>
 
-<p>One major modification to the calculation of <i>F</i> is that the Fair Tree
-algorithm normalizes the <i>S</i> value between 0.1 and 1.0 prior to the fair
-share calculation. This is done because a low <i>S</i> value can result in an
-<i>F</i> value that is approximately 0, even when <i>U</i> is small. An example
-of this behavior can be visualized by comparing an unnormalized <i>S</i> value
-between
-<a href="http://www.wolframalpha.com/input/?i=2%5E-%28u%2Fs%29%2C+u+from+0+to+1%2C+s+from+0+to+1">
-0.0 and 1.0</a> to a normalized <i>S</i> value between
-<a href="http://www.wolframalpha.com/input/?i=2%5E-%28u%2Fs%29%2C+u+from+0+to+1%2C+s+from+.1+to+1">
-0.1 and 1.0</a>.</p>
+<p>One additional modification to the fairshare calculation is that the Fair
+Tree algorithm normalizes the <i>S</i> value between 0.1 and 1.0 prior to the
+Level Fairshare calculation. This is done because a low <i>S</i> value can
+result in an <i>LF</i> value that approaches zero mathematically and
+actually might be zero in floating point, even if <i>U</i> is small.</p>
 
-<p>Assuming 150 associations at the same level and with equal Fairshare values
-set in sacctmgr, <i>S</i> is 0.0067. When plugged into the equation, <i>F</i>
-values are often indistinguishable from each other when <i>U</i> is high.
-Compare the unnormalized
-<a href="http://www.wolframalpha.com/input/?i=2%5E-%28u%2F0.0067%29%2C+u+from+0+to+1">
-S=0.0067</a> to a worst case
+<p>Assuming 100 accounts below root, 10 users in an account, and equal Fairshare
+values set in sacctmgr for accounts and for users, <i>S</i> is 0.001 for users.
+When plugged into the equation, <i>LF</i> values are often indistinguishable from
+each other when <i>U</i> is high. Compare the unnormalized
+<a href="http://www.wolframalpha.com/input/?i=2%5E-%28u%2F.001%29%2C+u+from+0+to+1">
+S=0.001</a> to a worst case
 <a href="http://www.wolframalpha.com/input/?i=2%5E-%28u%2F.1%29%2C+u+from+0+to+1">
-S=0.1</a> when the value is normalized before <i>F</i> is calculated.</p>
+S=0.1</a> when the value is normalized before <i>LF</i> is calculated.</p>
 
 <p>The general formula used to normalize <i>S</i> is a linear interpolation,
 which maps fraction f in <code>0.0 .. 1.0</code> to range <code>a .. b</code>,
@@ -128,24 +171,28 @@ equivalent equation is used to mitigate floating point imprecision.</p>
 
 <pre>lerp(a, b, f) =  a + f * (b - a)</pre>
 
+<p>With the linear interpolation function, the final Level Fairshare equation is
+</p>
+<pre>LF = 2**-(U / lerp(0.1, 1.0, S))</pre>
+
 
 <h2><a name="ties">Ties</a></h2>
 
 <p>Ties are handled as follows:
 <ul>
-<li>Sibling users with the same level_fs receive the same rank</li>
-<li>A user with the same level_fs as a sibling account will receive the same
-rank as its highest ranked user</li>
-<li>Sibling accounts with the same level_fs have their children lists merged
-</li>
+<li>Sibling users with the same Level Fairshare receive the same rank</li>
+<li>A user with the same Level Fairshare as a sibling account will receive the
+same rank as its highest ranked user</li>
+<li>Sibling accounts with the same Level Fairshare have their children lists
+merged before descending</li>
 </ul>
 </p>
 
 <h2><a name="sshare">sshare</a></h2>
 
-<p>sshare was modified to show the <i>level_fs</i> value as <i>Level FS</i> when
+<p>sshare was modified to show the Level Fairshare value as <i>Level FS</i> when
 the <i>-l</i> (long) parameter is specified.  The field shows the value for each
-association, thus allowing users to see the results of the fair share
+association, thus allowing users to see the results of the fairshare
 calculation at each level.</p>
 
 <p>Note: Norm Usage is not used by Fair Tree but is still displayed.</p>
@@ -177,8 +224,7 @@ usefully set to a much smaller value than usual, possibly as low as 1 or 2 times
 the number of user associations.
 </li>
 <li>Fair Tree requires the <a href="accounting.html">Slurm Accounting
-Database</a> to provide the assigned shares and the consumed,
-computing resources described below.
+Database</a> to provide usage information and the assigned shares values.
 </li>
 <li><i>scontrol reconfigure</i> does not cause the Fair Tree algorithm to
 run immediately, even if switching from a different algorithm. You may have to
@@ -188,6 +234,6 @@ wait until the next iteration as defined by <i>PriorityCalcPeriod</i>.
 
 
 <!-- -------------------------------------------------------------------- -->
-<p style="text-align:center;">Last modified 28 Aug 2014</p>
+<p style="text-align:center;">Last modified 08 Sep 2014</p>
 
 <!--#include virtual="footer.txt"-->

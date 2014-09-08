@@ -184,7 +184,7 @@ extern long double lerp(long double min, long double max, long double f)
 	 * However, floating point math will cause problems with certain inputs
 	 * to the simplified equation.
 	 *
-	 * For example: lerp(-16.0e30, 16.0, 1.0) will return 0
+	 * For example: lerp_simplistic(-16.0e30, 16.0, 1.0) would return 0
 	 */
 
 	return min * (1.0L - f) + max * f;
