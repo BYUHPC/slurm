@@ -81,7 +81,6 @@ strong_alias(list_dequeue,	slurm_list_dequeue);
 strong_alias(list_iterator_create,	slurm_list_iterator_create);
 strong_alias(list_iterator_reset,	slurm_list_iterator_reset);
 strong_alias(list_iterator_destroy,	slurm_list_iterator_destroy);
-strong_alias(list_iterator_peek,	slurm_list_iterator_peek);
 strong_alias(list_next,		slurm_list_next);
 strong_alias(list_insert,	slurm_list_insert);
 strong_alias(list_find,		slurm_list_find);
@@ -789,25 +788,6 @@ list_next (ListIterator i)
 		i->pos = p->next;
 	if (*i->prev != p)
 		i->prev = &(*i->prev)->next;
-
-	list_mutex_unlock(&i->list->mutex);
-
-	return (p ? p->data : NULL);
-}
-
-/* list_iterator_peek()
- */
-void *
-list_iterator_peek (ListIterator i)
-{
-	ListNode p;
-
-	assert(i != NULL);
-	assert(i->magic == LIST_MAGIC);
-	list_mutex_lock(&i->list->mutex);
-	assert(i->list->magic == LIST_MAGIC);
-
-	p = i->pos;
 
 	list_mutex_unlock(&i->list->mutex);
 
