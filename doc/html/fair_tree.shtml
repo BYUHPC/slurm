@@ -15,7 +15,6 @@ Authors: Ryan Cox and Levi Morrison
 <li><a href="#enduser">Overview for End Users</a></li>
 <li><a href="#algorithm">Algorithm</a></li>
 <li><a href="#fairshare">Level Fairshare Calculation</a></li>
-<li><a href="#normalization">Linear Interpolation of Shares</a></li>
 <li><a href="#ties">Ties</a></li>
 <li><a href="#sshare">sshare</a></li>
 <li><a href="#config">Configuration</a></li>
@@ -56,7 +55,8 @@ factors than all children of B.</p>
 
 <p>This section is intended for non-admin users who just want to know how their
 fairshare factor is determined.  Run <code>sshare -l</code> (lowercase "L") to
-view the following columns: <code>FairShare, Level FS</code>.
+view the following columns: <code>FairShare, Level FS</code>.  Note that
+Level FS values are often negative.</p>
 
 <p>If an account has a higher Level FS value than any other sibling user or
 sibling account, all children of that account will have a higher FairShare value
@@ -117,13 +117,12 @@ associations then start at root:</p>
 
 <h2><a name="fairshare">Level Fairshare Calculation</a></h2>
 
-<p>As the Fair Tree algorithm descends through the association hierarchy, it
-calculates Level Fairshare in a way similar to the traditional multifactor
-method's Fairshare calculation.  However, Level Fairshare only considers an
-association and its siblings. One additional modification is discussed in the
-next section.
+<p>The Level Fairshare equation is described below. Under-served associations
+will have a positive value. Over-served associations will have a negative value.
+</p>
+
 <pre>
-LF = 2**-(U/S)
+LF = 1.0 - (U / S)
 </pre>
 
 <dl>
@@ -141,40 +140,11 @@ normalized to the shares assigned to itself and its siblings:
 </dd>
 </dl>
 
-<p>All values above are in the range <code>0.0 .. 1.0</code>.</p>
+<p>U and S are in the range <nobr><code>0.0 .. 1.0</code></nobr>. LF is in the
+range <nobr><code>-infinity .. 1.0</code>.</nobr></p>
 
 <p>See the original <a href="priority_multifactor.html">multifactor plugin</a>
 for more information on this calculation.</p>
-
-
-<h2 id="normalization">Linear Interpolation of Shares</h2>
-
-<p>One additional modification to the fairshare calculation is that the Fair
-Tree algorithm normalizes the <i>S</i> value between 0.1 and 1.0 prior to the
-Level Fairshare calculation. This is done because a low <i>S</i> value can
-result in an <i>LF</i> value that approaches zero mathematically and
-actually might be zero in floating point, even if <i>U</i> is small.</p>
-
-<p>Assuming 100 accounts below root, 10 users in an account, and equal Fairshare
-values set in sacctmgr for accounts and for users, <i>S</i> is 0.001 for users.
-When plugged into the equation, <i>LF</i> values are often indistinguishable from
-each other when <i>U</i> is high. Compare the unnormalized
-<a href="http://www.wolframalpha.com/input/?i=2%5E-%28u%2F.001%29%2C+u+from+0+to+1">
-S=0.001</a> to a worst case
-<a href="http://www.wolframalpha.com/input/?i=2%5E-%28u%2F.1%29%2C+u+from+0+to+1">
-S=0.1</a> when the value is normalized before <i>LF</i> is calculated.</p>
-
-<p>The general formula used to normalize <i>S</i> is a linear interpolation,
-which maps fraction f in <code>0.0 .. 1.0</code> to range <code>a .. b</code>,
-represented by <code>lerp</code> below. A different but mathematically
-equivalent equation is used to mitigate floating point imprecision.</p>
-
-<pre>lerp(a, b, f) =  a + f * (b - a)</pre>
-
-<p>With the linear interpolation function, the final Level Fairshare equation is
-</p>
-<pre>LF = 2**-(U / lerp(0.1, 1.0, S))</pre>
-
 
 <h2><a name="ties">Ties</a></h2>
 
@@ -190,8 +160,8 @@ merged before descending</li>
 
 <h2><a name="sshare">sshare</a></h2>
 
-<p>sshare was modified to show the Level Fairshare value as <i>Level FS</i> when
-the <i>-l</i> (long) parameter is specified.  The field shows the value for each
+<p>sshare was modified to show the Level Fairshare value as <code>Level FS</code> when
+the <code>-l</code> (long) parameter is specified.  The field shows the value for each
 association, thus allowing users to see the results of the fairshare
 calculation at each level.</p>
 

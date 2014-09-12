@@ -136,8 +136,10 @@ Effectv Usage is the association's usage normalized with its parent.
 
 .TP
 \f3Level FS\fP (only appears with \fBsshare \-l\fR option)
-This is the association's fairshare value at its level in the association
-tree, calculated based on Norm Shares and Effectv Usage.
+This is the association's fairshare value compared to its siblings, calculated
+based on Norm Shares and Effectv Usage. When an association is under-served, the
+value is positive. When an association is over-served, the value is negative.
+The range of values is negative infinity to 1.
 
 .TP
 More information about Fair Tree can be found in doc/html/fair_tree.html or
