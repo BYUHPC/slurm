@@ -42,6 +42,7 @@
 static void _ft_decay_apply_new_usage(struct job_record *job, time_t *start);
 static void _apply_priority_fs(void);
 
+
 extern void fair_tree_init(void) {
 }
 
@@ -83,7 +84,7 @@ static void _ft_set_assoc_usage_efctv(
 	}
 
 	assoc->usage->usage_efctv =
-		assoc->usage->usage_raw / (long double)parent->usage->usage_raw;
+		assoc->usage->usage_raw / parent->usage->usage_raw;
 }
 
 
@@ -152,47 +153,42 @@ static int _sort_level_fs(slurmdb_association_rec_t **x,
 }
 
 
-/* Calculate F=2**(-Ueff/S) for an association. */
+/* Calculate level_fs = 1.0 - 0.1 * (U / S) for an association.
+ *
+ * S is shares_raw / level_shares, then adjusted using linear interpolation to
+ * shift the range from 0.0 .. 1.0 to 0.1 .. 1.0; this avoids division by zero
+ * and provides a known maximum value for U / S.
+ *
+ * U is usage_raw / parent's usage_raw. It is multiplied by 0.1 to adjust the
+ * result of U / S to be between 0 .. 1. This range is backwards; to fix it we
+ * simply subtract it from 1.0.
+ */
 static void _calc_assoc_fs(slurmdb_association_rec_t *assoc)
 {
-	long double shares_adj = 0L;
+	const long double min_shares = 0.1L;
+	const long double max_shares = 1.0L;
+	long double S;
+	long double U; /* long double U != long W */
 
 	_ft_set_assoc_usage_efctv(assoc);
 
 	/* Fair Tree doesn't use usage_norm but we will set it anyway */
 	set_assoc_usage_norm(assoc);
 
+	/* Users marked as USE_PARENT are assigned the maximum level_fs so they
+	 * rank highest in their account, subject to ties.
+	 * Accounts marked as USE_PARENT do not use level_fs */
 	if (assoc->shares_raw == SLURMDB_FS_USE_PARENT) {
 		if (assoc->user)
 			assoc->usage->level_fs = 1L;
 		else
-			assoc->usage->level_fs = 0L;
+			assoc->usage->level_fs = (long double) NO_VAL;
 		return;
 	}
 
-	/* If shares_norm is zero, the association might be new or you really
-	 * don't like them. Either way, give them no fairshare. */
-	if (!assoc->usage->shares_norm) {
-		assoc->usage->level_fs = 0L;
-		return;
-	}
-
-	/* This function normalizes shares to be between 0.1 and 1.0;
-	 * this range fares much better than 0.0 to 1.0 when used in
-	 * the denominator of the fairshare calculation:
-	 *   2**(-UsageEffective / Shares)
-	 *
-	 * Compare these two:
-	 * http://www.wolframalpha.com/input/?i=2%5E-%28u%2Fs%29%2C+u+from+0+to+1%2C+s+from+.1+to+1
-	 * http://www.wolframalpha.com/input/?i=2%5E-%28u%2Fs%29%2C+u+from+0+to+1%2C+s+from+0+to+1
-	 */
-	shares_adj = lerp(0.1L, 1L, assoc->usage->shares_norm);
-	assoc->usage->level_fs =
-#if defined(__FreeBSD__)
-		pow(2L, -(assoc->usage->usage_efctv / shares_adj));
-#else
-		powl(2L, -(assoc->usage->usage_efctv / shares_adj));
-#endif
+	U = assoc->usage->usage_efctv;
+	S = lerp(min_shares, max_shares, assoc->usage->shares_norm);
+	assoc->usage->level_fs = 1L - min_shares * (U / S);
 }
 
 
