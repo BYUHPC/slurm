@@ -73,7 +73,4 @@ extern List priority_g_get_priority_factors_list(
  */
 extern void priority_g_job_end(struct job_record *job_ptr);
 
-/* Linear interpolation from fraction f to range min..max */
-extern long double lerp(long double min, long double max, long double f);
-
 #endif /*_SLURM_PRIORIY_H */
