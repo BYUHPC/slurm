@@ -164,16 +164,14 @@ static int _cmp_level_fs(slurmdb_association_rec_t **x,
 }
 
 
-/* Calculate level_fs = 1.0 - U / S for an association.
+/* Calculate LF = S / U for an association.
  *
  * U is usage_raw / parent's usage_raw.
  * S is shares_raw / level_shares
  *
- * Subtracting U / S from 1.0 adjusts the results so that positive values
- * indicate that an association is below their fairshare target, and negative
- * values indicate that they are over their fairshare target. Note that positive
- * values will never be greater than 1.0, while negative values can be as small
- * as negative infinity.
+ * The range of values is 0.0 .. INFINITY.
+ * If LF > 1.0, the association is under-served.
+ * If LF < 1.0, the association is over-served.
  */
 static void _calc_assoc_fs(slurmdb_association_rec_t *assoc)
 {
@@ -193,19 +191,22 @@ static void _calc_assoc_fs(slurmdb_association_rec_t *assoc)
 	 * Accounts marked as USE_PARENT do not use level_fs */
 	if (assoc->shares_raw == SLURMDB_FS_USE_PARENT) {
 		if (assoc->user)
-			assoc->usage->level_fs = 1L;
+			assoc->usage->level_fs = INFINITY;
 		else
 			assoc->usage->level_fs = (long double) NO_VAL;
 		return;
 	}
 
-	/* You may be tempted to remove this check as negative infinity would
-	 * be the result of the division by zero. However, if the numerator is
-	 * also zero the result is NaN which breaks the sorting. */
-	if (S == 0.0L)
-		assoc->usage->level_fs = -INFINITY;
+	/* If S is 0, the assoc is assigned the lowest possible LF value. If
+	 * U==0 && S!=0, assoc is assigned the highest possible value, infinity.
+	 * Checking for U==0 then setting level_fs=INFINITY is not the same
+	 * since you would still have to check for S==0 then set level_fs=0.
+	 *
+	 * NOT A BUG: U can be 0. The result is infinity, a valid value. */
+	if (S == 0L)
+		assoc->usage->level_fs = 0L;
 	else
-		assoc->usage->level_fs = 1L - U / S;
+		assoc->usage->level_fs = S / U;
 }
 
 
@@ -320,9 +321,7 @@ static void _calc_tree_fs(slurmdb_association_rec_t** siblings,
 				*rank / (double) g_user_assoc_count;
 			(*i)--;
 		} else {
-
 			slurmdb_association_rec_t** children;
-			// FIXME: skip merge_count siblings
 			size_t merge_count =
 				_count_tied_accounts(siblings, ndx);
 
@@ -333,6 +332,9 @@ static void _calc_tree_fs(slurmdb_association_rec_t** siblings,
 					ndx + merge_count, assoc_level);
 
 			_calc_tree_fs(children, assoc_level + 1, rank, i, tied);
+
+			/* Skip over any merged accounts */
+			ndx += merge_count;
 
 			xfree(children);
 		}

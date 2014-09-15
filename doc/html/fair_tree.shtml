@@ -56,7 +56,7 @@ factors than all children of B.</p>
 <p>This section is intended for non-admin users who just want to know how their
 fairshare factor is determined.  Run <code>sshare -l</code> (lowercase "L") to
 view the following columns: <code>FairShare, Level FS</code>.  Note that
-Level FS values are often negative.</p>
+Level FS values are infinity if the association has no usage.</p>
 
 <p>If an account has a higher Level FS value than any other sibling user or
 sibling account, all children of that account will have a higher FairShare value
@@ -118,33 +118,31 @@ associations then start at root:</p>
 <h2><a name="fairshare">Level Fairshare Calculation</a></h2>
 
 <p>The Level Fairshare equation is described below. Under-served associations
-will have a positive value. Over-served associations will have a negative value.
+will have a value greater than 1.0. Over-served associations will have a value
+between 0.0 and 1.0.
 </p>
 
 <pre>
-LF = 1.0 - (U / S)
+LF = S / U
 </pre>
 
 <dl>
 <dt>LF</dt>
 <dd> is the association's Level Fairshare</dd>
-<dt> U</dt>
-<dd> also known as Effective Usage, U is the association's usage normalized to
-the account's usage:
-<nobr><code>U = Uraw<sub>self</sub> / Uraw<sub>self+siblings</sub></code></nobr>
-</dd>
 <dt> S</dt>
 <dd> also known as Shares Norm, S is the association's assigned shares
 normalized to the shares assigned to itself and its siblings:
 <nobr><code>S = Sraw<sub>self</sub> / Sraw<sub>self+siblings</sub></code></nobr>
 </dd>
+<dt> U</dt>
+<dd> also known as Effective Usage, U is the association's usage normalized to
+the account's usage:
+<nobr><code>U = Uraw<sub>self</sub> / Uraw<sub>self+siblings</sub></code></nobr>
+</dd>
 </dl>
 
 <p>U and S are in the range <nobr><code>0.0 .. 1.0</code></nobr>. LF is in the
-range <nobr><code>-infinity .. 1.0</code>.</nobr></p>
-
-<p>See the original <a href="priority_multifactor.html">multifactor plugin</a>
-for more information on this calculation.</p>
+range <nobr><code>0.0 .. infinity</code>.</nobr></p>
 
 <h2><a name="ties">Ties</a></h2>
 
@@ -204,6 +202,6 @@ wait until the next iteration as defined by <i>PriorityCalcPeriod</i>.
 
 
 <!-- -------------------------------------------------------------------- -->
-<p style="text-align:center;">Last modified 08 Sep 2014</p>
+<p style="text-align:center;">Last modified 15 Sep 2014</p>
 
 <!--#include virtual="footer.txt"-->
