@@ -1508,7 +1508,11 @@ extern void destroy_assoc_mgr_qos_usage(void *object)
 	}
 }
 
-
+/* Since the returned assoc_list is full of pointers from the
+ * assoc_mgr_association_list assoc_mgr_lock_t READ_LOCK on
+ * associations must be set before calling this function and while
+ * handling it after a return.
+ */
 extern int assoc_mgr_get_user_assocs(void *db_conn,
 				     slurmdb_association_rec_t *assoc,
 				     int enforce,
@@ -1517,8 +1521,6 @@ extern int assoc_mgr_get_user_assocs(void *db_conn,
 	ListIterator itr = NULL;
 	slurmdb_association_rec_t *found_assoc = NULL;
 	int set = 0;
-	assoc_mgr_lock_t locks = { READ_LOCK, NO_LOCK,
-				   NO_LOCK, NO_LOCK, NO_LOCK, NO_LOCK };
 
 	xassert(assoc);
 	xassert(assoc->uid != NO_VAL);
@@ -1532,12 +1534,9 @@ extern int assoc_mgr_get_user_assocs(void *db_conn,
 		if (assoc_mgr_refresh_lists(db_conn) == SLURM_ERROR)
 			return SLURM_ERROR;
 
-	assoc_mgr_lock(&locks);
-
 	if ((!assoc_mgr_association_list
 	     || !list_count(assoc_mgr_association_list))
 	    && !(enforce & ACCOUNTING_ENFORCE_ASSOCS)) {
-		assoc_mgr_unlock(&locks);
 		return SLURM_SUCCESS;
 	}
 
@@ -1553,7 +1552,6 @@ extern int assoc_mgr_get_user_assocs(void *db_conn,
 		set = 1;
 	}
 	list_iterator_destroy(itr);
-	assoc_mgr_unlock(&locks);
 
 	if (!set) {
 		debug("UID %u has no associations", assoc->uid);
@@ -1566,7 +1564,8 @@ extern int assoc_mgr_get_user_assocs(void *db_conn,
 extern int assoc_mgr_fill_in_assoc(void *db_conn,
 				   slurmdb_association_rec_t *assoc,
 				   int enforce,
-				   slurmdb_association_rec_t **assoc_pptr)
+				   slurmdb_association_rec_t **assoc_pptr,
+				   bool locked)
 {
 	ListIterator itr = NULL;
 	slurmdb_association_rec_t * found_assoc = NULL;
@@ -1642,7 +1641,8 @@ extern int assoc_mgr_fill_in_assoc(void *db_conn,
 /* 	     "cluster=%s, partition=%s", */
 /* 	     assoc->user, assoc->uid, assoc->acct, */
 /* 	     assoc->cluster, assoc->partition); */
-	assoc_mgr_lock(&locks);
+	if (!locked)
+		assoc_mgr_lock(&locks);
 	itr = list_iterator_create(assoc_mgr_association_list);
 	while ((found_assoc = list_next(itr))) {
 		if (assoc->id) {
@@ -1701,7 +1701,8 @@ extern int assoc_mgr_fill_in_assoc(void *db_conn,
 	list_iterator_destroy(itr);
 
 	if (!ret_assoc) {
-		assoc_mgr_unlock(&locks);
+		if (!locked)
+			assoc_mgr_unlock(&locks);
 		if (enforce & ACCOUNTING_ENFORCE_ASSOCS)
 			return SLURM_ERROR;
 		else
@@ -1790,8 +1791,8 @@ extern int assoc_mgr_fill_in_assoc(void *db_conn,
 
 	if (!assoc->user)
 		assoc->user = ret_assoc->user;
-
-	assoc_mgr_unlock(&locks);
+	if (!locked)
+		assoc_mgr_unlock(&locks);
 
 	return SLURM_SUCCESS;
 }

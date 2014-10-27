@@ -213,7 +213,7 @@ void batch_bind(batch_job_launch_msg_t *req)
 	}
 
 	str = (char *)bit_fmt_hexmask(req_map);
-	debug3("task/affinity: job %u CPU mask from slurmctld: %s",
+	debug3("task/affinity: job %u core mask from slurmctld: %s",
 		req->job_id, str);
 	xfree(str);
 
@@ -240,6 +240,7 @@ void batch_bind(batch_job_launch_msg_t *req)
 		req->cpu_bind_type = CPU_BIND_MASK;
 		if (conf->task_plugin_param & CPU_BIND_VERBOSE)
 			req->cpu_bind_type |= CPU_BIND_VERBOSE;
+		xfree(req->cpu_bind);
 		req->cpu_bind = (char *)bit_fmt_hexmask(hw_map);
 		info("task/affinity: job %u CPU input mask for node: %s",
 		     req->job_id, req->cpu_bind);
@@ -601,7 +602,7 @@ static bitstr_t *_get_avail_map(launch_tasks_request_msg_t *req,
 	}
 
 	str = (char *)bit_fmt_hexmask(req_map);
-	debug3("task/affinity: job %u.%u CPU mask from slurmctld: %s",
+	debug3("task/affinity: job %u.%u core mask from slurmctld: %s",
 		req->job_id, req->job_step_id, str);
 	xfree(str);
 
@@ -789,7 +790,32 @@ static int _task_layout_lllp_cyclic(launch_tasks_request_msg_t *req,
 		last_taskcount = taskcount;
 		for (i = 0; i < size; i++) {
 			bool already_switched = false;
-			uint16_t bit = socket_last_pu[s] + (s * offset);
+			uint16_t bit;
+			uint16_t orig_s = s;
+
+			while (socket_last_pu[s] >= offset) {
+				/* Switch to the next socket we have
+				 * ran out here. */
+
+				/* This only happens if the slurmctld
+				 * gave us an allocation that made a
+				 * task split sockets.  Or if the
+				 * entire allocation is on one socket.
+				 */
+				s = (s + 1) % hw_sockets;
+				if (orig_s == s) {
+					/* This should rarely happen,
+					 * but is here for sanity sake.
+					 */
+					debug("allocation is full, "
+					      "oversubscribing");
+					memset(socket_last_pu, 0,
+					       sizeof(hw_sockets
+						      * sizeof(int)));
+				}
+			}
+
+			bit = socket_last_pu[s] + (s * offset);
 
 			/* In case hardware and config differ */
 			bit %= size;
@@ -799,17 +825,6 @@ static int _task_layout_lllp_cyclic(launch_tasks_request_msg_t *req,
 			/* skip unrequested threads */
 			if (req->cpu_bind_type & CPU_BIND_ONE_THREAD_PER_CORE)
 				socket_last_pu[s] += hw_threads-1;
-			if (socket_last_pu[s] >= offset) {
-				/* Switch to the next socket we have
-				 * ran out here. */
-
-				/* This only happens if the slurmctld
-				   gave us an allocation that made a
-				   task split sockets.
-				*/
-				s = (s + 1) % hw_sockets;
-				already_switched = true;
-			}
 
 			if (!bit_test(avail_map, bit))
 				continue;

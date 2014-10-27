@@ -140,7 +140,15 @@ void print_fields(type_t type, void *object)
 		*/
 		if (!step)
 			job->track_steps = 1;
-
+		job_comp = NULL;
+		break;
+	case JOBSTEP:
+		job = step->job_ptr;
+		job_comp = NULL;
+		break;
+	case JOBCOMP:
+		job = NULL;
+		step = NULL;
 		break;
 	default:
 		break;
@@ -516,8 +524,7 @@ void print_fields(type_t type, void *object)
 				tmp_int = step->elapsed;
 				break;
 			case JOBCOMP:
-				tmp_int = job_comp->end_time
-					- job_comp->start_time;
+				tmp_int = job_comp->elapsed_time;
 				break;
 			default:
 				tmp_int = NO_VAL;
@@ -577,11 +584,13 @@ void print_fields(type_t type, void *object)
 			default:
 				break;
 			}
-			if (WIFSIGNALED(tmp_int))
-				tmp_int2 = WTERMSIG(tmp_int);
-			tmp_int = WEXITSTATUS(tmp_int);
-			if (tmp_int >= 128)
-				tmp_int -= 128;
+			if (tmp_int != NO_VAL) {
+				if (WIFSIGNALED(tmp_int))
+					tmp_int2 = WTERMSIG(tmp_int);
+				tmp_int = WEXITSTATUS(tmp_int);
+				if (tmp_int >= 128)
+					tmp_int -= 128;
+			}
 			snprintf(outbuf, sizeof(outbuf), "%d:%d",
 				 tmp_int, tmp_int2);
 

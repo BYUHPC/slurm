@@ -1861,11 +1861,9 @@ static int _choose_nodes(struct job_record *job_ptr, bitstr_t *node_map,
 		}
 	}
 
-	/* NOTE: details->min_cpus is 1 by default,
-	 * Only reset max_nodes if user explicitly sets a proc count */
-	if ((job_ptr->details->min_cpus > 1) &&
-	    (max_nodes > job_ptr->details->min_cpus))
-		max_nodes = job_ptr->details->min_cpus;
+	if ((job_ptr->details->num_tasks > 1) &&
+	    (max_nodes > job_ptr->details->num_tasks))
+		max_nodes = job_ptr->details->num_tasks;
 
 	origmap = bit_copy(node_map);
 
@@ -2172,6 +2170,10 @@ extern int cr_job_test(struct job_record *job_ptr, bitstr_t *node_bitmap,
 		FREE_NULL_BITMAP(free_cores);
 		FREE_NULL_BITMAP(avail_cores);
 		xfree(cpu_count);
+		if (select_debug_flags & DEBUG_FLAG_CPU_BIND) {
+			info("cons_res: cr_job_test: test 0 fail: "
+			     "waiting for switches");
+		}
 		return SLURM_ERROR;
 	}
 	if (cr_type == CR_MEMORY) {
@@ -2654,13 +2656,23 @@ alloc_job:
 	/* translate job_res->cpus array into format with rep count */
 	build_cnt = build_job_resources_cpu_array(job_res);
 	if (job_ptr->details->whole_node) {
-		int first, last = -1;
+		int first, last = -1, inx = 0;
 		first = bit_ffs(job_res->node_bitmap);
 		if (first != -1)
 			last  = bit_fls(job_res->node_bitmap);
 		job_ptr->total_cpus = 0;
 		for (i = first; i <= last; i++) {
-			job_ptr->total_cpus += select_node_record[i].cpus;
+			if (!bit_test(job_res->node_bitmap, i))
+				continue;
+			/* The inx here always starts at 0.
+			 * Since we are allocating whole nodes up the
+			 * cpus in the job_res or it will no longer be
+			 * accurate when the job starts finishing and
+			 * nodes are removed from the count.
+			 */
+			job_res->cpus[inx] = select_node_record[i].cpus;
+			job_ptr->total_cpus += job_res->cpus[inx];
+			inx++;
 		}
 	} else if (build_cnt >= 0)
 		job_ptr->total_cpus = build_cnt;

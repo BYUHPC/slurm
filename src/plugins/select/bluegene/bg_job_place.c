@@ -762,7 +762,7 @@ static List _handle_jobs_unusable_block(bg_record_t *bg_record)
 				kill_job_list =
 					bg_status_create_kill_job_list();
 			freeit = (kill_job_struct_t *)xmalloc(sizeof(freeit));
-			freeit->jobid = bg_record->job_ptr->job_id;
+			freeit->jobid = job_ptr->job_id;
 			list_push(kill_job_list, freeit);
 		}
 		list_iterator_destroy(itr);
@@ -1403,10 +1403,12 @@ static int _find_best_block_match(List block_list,
 			}
 			list_iterator_destroy(itr);
 
-			/* Block list is already in the correct order,
-			   earliest available first,
-			   so the job list will also be. No need to
-			   sort. */
+			/* Since we might have shared blocks here we
+			   need to sort again based on time to get the
+			   earliest available first. */
+			list_sort(job_list,
+				  (ListCmpF)bg_record_sort_aval_time_inc);
+
 			while (1) {
 				bool track_down_nodes = true;
 

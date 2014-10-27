@@ -1278,6 +1278,10 @@ static void _queue_reboot_msg(void)
 			want_nodes_reboot = true;
 			continue;
 		}
+		if (IS_NODE_COMPLETING(node_ptr)) {
+			want_nodes_reboot = true;
+			continue;
+		}
 		if (IS_NODE_IDLE(node_ptr) && !IS_NODE_NO_RESPOND(node_ptr) &&
 		    !IS_NODE_POWER_UP(node_ptr)) /* only active idle nodes */
 			want_reboot = true;
@@ -1298,8 +1302,10 @@ static void _queue_reboot_msg(void)
 		}
 		hostlist_push(reboot_agent_args->hostlist, node_ptr->name);
 		reboot_agent_args->node_count++;
-		node_ptr->node_state = NODE_STATE_FUTURE |
-				(node_ptr->node_state & NODE_STATE_FLAGS);
+		node_ptr->node_state &= ~NODE_STATE_MAINT;
+		node_ptr->node_state &=  NODE_STATE_FLAGS;
+		node_ptr->node_state |=  NODE_STATE_DOWN;
+		node_ptr->reason = xstrdup("Scheduled reboot");
 		bit_clear(avail_node_bitmap, i);
 		bit_clear(idle_node_bitmap, i);
 		node_ptr->last_response = now;
@@ -1312,6 +1318,7 @@ static void _queue_reboot_msg(void)
 		xfree(host_str);
 		agent_queue_request(reboot_agent_args);
 		last_node_update = now;
+		schedule_node_save();
 	}
 }
 
@@ -2262,7 +2269,7 @@ static void *_assoc_cache_mgr(void *no_data)
 				    acct_db_conn, &assoc_rec,
 				    accounting_enforce,
 				    (slurmdb_association_rec_t **)
-				    &job_ptr->assoc_ptr)) {
+				    &job_ptr->assoc_ptr, false)) {
 				verbose("Invalid association id %u "
 					"for job id %u",
 					job_ptr->assoc_id, job_ptr->job_id);

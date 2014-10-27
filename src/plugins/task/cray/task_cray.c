@@ -323,10 +323,14 @@ extern int task_p_post_term (stepd_step_rec_t *job,
 	char llifile[LLI_STATUS_FILE_BUF_SIZE];
 	char status;
 	int rv, fd;
-	char *reason;
 
 	debug("task_p_post_term: %u.%u, task %d",
 	      job->jobid, job->stepid, job->envtp->procid);
+
+	// We only need to special case termination with exit(0)
+	// srun already handles abnormal exit conditions fine
+	if (!WIFEXITED(task->estatus) || (WEXITSTATUS(task->estatus) != 0))
+		return SLURM_SUCCESS;
 
 	// Get the lli file name
 	snprintf(llifile, sizeof(llifile), LLI_STATUS_FILE,
@@ -370,25 +374,27 @@ extern int task_p_post_term (stepd_step_rec_t *job,
 	}
 
 	// Check the result
-	if (status == 0 && !terminated) {
+	if (status == 0) {
 		if (task->killed_by_cmd) {
 			// We've been killed by request. User already knows
 			return SLURM_SUCCESS;
-		} else if (task->aborted) {
-			reason = "aborted";
-		} else if (WIFSIGNALED(task->estatus)) {
-			reason = "signaled";
-		} else {
-			reason = "exited";
 		}
 
-		// Cancel the job step, since we didn't find the exiting msg
-		error("Terminating job step %"PRIu32".%"PRIu32
-			"; task %d exit code %d %s without notification",
-			job->jobid, job->stepid, task->gtid,
-			WEXITSTATUS(task->estatus), reason);
-		terminated = 1;
-		slurm_terminate_job_step(job->jobid, job->stepid);
+		// Cancel the job step, since we didn't find the mpi_fini msg
+		// srun only gets the error() messages by default, send one
+		// per compute node, but log all other events with info().
+		if (terminated) {
+			info("step %u.%u task %u exited without calling "
+			     "PMI_Finalize()",
+			     job->jobid, job->stepid, task->gtid);
+		} else {
+			error("step %u.%u task %u exited without calling "
+			      "PMI_Finalize()",
+			      job->jobid, job->stepid, task->gtid);
+			terminated = 1;
+		}
+		info("reset estatus from %d to %d", task->estatus, SIGKILL);
+		task->estatus = SIGKILL;
 	}
 
 #endif

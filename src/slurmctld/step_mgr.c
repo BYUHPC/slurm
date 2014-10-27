@@ -212,6 +212,26 @@ static void _internal_step_complete(
 	struct job_record *job_ptr,
 	struct step_record *step_ptr, bool terminated)
 {
+	uint16_t cleaning = 0;
+
+	/* No reason to complete a step that hasn't started yet. */
+	if (step_ptr->step_id == INFINITE)
+		return;
+
+	/* If the job is already cleaning we have already been here
+	   before, so just return.
+	*/
+	select_g_select_jobinfo_get(step_ptr->select_jobinfo,
+				    SELECT_JOBDATA_CLEANING,
+				    &cleaning);
+	if (cleaning) {	/* Step hasn't finished cleanup yet. */
+		debug("%s: Cleaning flag already set for "
+		      "job step %u.%u, no reason to cleanup again.",
+		      __func__, step_ptr->step_id,
+		      step_ptr->job_ptr->job_id);
+		return;
+	}
+
 	jobacct_storage_g_step_complete(acct_db_conn, step_ptr);
 	job_ptr->derived_ec = MAX(job_ptr->derived_ec,
 				  step_ptr->exit_code);
@@ -253,14 +273,13 @@ extern void delete_step_records (struct job_record *job_ptr)
 						    &cleaning);
 			if (cleaning)	/* Step hasn't finished cleanup yet. */
 				continue;
+			_internal_step_complete(job_ptr, step_ptr, true);
 		}
 
-		_internal_step_complete(job_ptr, step_ptr, true);
 		list_remove (step_iterator);
 		_free_step_rec(step_ptr);
 	}
 	list_iterator_destroy(step_iterator);
-	gres_plugin_job_clear(job_ptr->gres_list);
 
 }
 
@@ -360,9 +379,11 @@ dump_step_desc(job_step_create_request_msg_t *step_spec)
 	       step_spec->user_id, step_spec->job_id,
 	       step_spec->min_nodes, step_spec->max_nodes,
 	       step_spec->cpu_count);
-	debug3("   cpu_freq=%u num_tasks=%u relative=%u task_dist=%u node_list=%s",
+	debug3("   cpu_freq=%u num_tasks=%u relative=%u task_dist=%u plane=%u",
 	       step_spec->cpu_freq, step_spec->num_tasks, step_spec->relative,
-	       step_spec->task_dist, step_spec->node_list);
+	       step_spec->task_dist, step_spec->plane_size);
+	debug3("   node_list=%s  constraints=%s",
+	       step_spec->node_list, step_spec->features);
 	debug3("   host=%s port=%u name=%s network=%s exclusive=%u",
 	       step_spec->host, step_spec->port, step_spec->name,
 	       step_spec->network, step_spec->exclusive);
@@ -371,9 +392,8 @@ dump_step_desc(job_step_create_request_msg_t *step_spec)
 	debug3("   mem_per_%s=%u resv_port_cnt=%u immediate=%u no_kill=%u",
 	       mem_type, mem_value, step_spec->resv_port_cnt,
 	       step_spec->immediate, step_spec->no_kill);
-	debug3("   overcommit=%d time_limit=%u gres=%s constraints=%s",
-	       step_spec->overcommit, step_spec->time_limit, step_spec->gres,
-	       step_spec->features);
+	debug3("   overcommit=%d time_limit=%u gres=%s",
+	       step_spec->overcommit, step_spec->time_limit, step_spec->gres);
 }
 
 
@@ -1132,7 +1152,8 @@ _pick_step_nodes (struct job_record  *job_ptr,
 
 			total_cpus = job_resrcs_ptr->cpus[node_inx];
 			usable_cpu_cnt[i] = avail_cpus = total_cpus;
-			if (step_spec->pn_min_memory & MEM_PER_CPU) {
+			if (_is_mem_resv() &&
+			    step_spec->pn_min_memory & MEM_PER_CPU) {
 				uint32_t mem_use = step_spec->pn_min_memory;
 				mem_use &= (~MEM_PER_CPU);
 				/* ignore current step allocations */
@@ -1149,7 +1170,7 @@ _pick_step_nodes (struct job_record  *job_ptr,
 					usable_cpu_cnt[i] = avail_cpus;
 					fail_mode = ESLURM_INVALID_TASK_MEMORY;
 				}
-			} else if (step_spec->pn_min_memory) {
+			} else if (_is_mem_resv() && step_spec->pn_min_memory) {
 				uint32_t mem_use = step_spec->pn_min_memory;
 				/* ignore current step allocations */
 				tmp_mem    = job_resrcs_ptr->
@@ -3022,7 +3043,12 @@ extern int step_partial_comp(step_complete_msg_t *req, uid_t uid,
 		info("step_partial_comp: JobID=%u invalid", req->job_id);
 		return ESLURM_INVALID_JOB_ID;
 	}
-	if (IS_JOB_PENDING(job_ptr)) {
+
+	/* If we are requeuing the job the completing flag will be set
+	 * but the state will be Pending, so don't use IS_JOB_PENDING
+	 * which won't see the completing flag.
+	 */
+	if (job_ptr->job_state == JOB_PENDING) {
 		info("step_partial_comp: JobID=%u pending", req->job_id);
 		return ESLURM_JOB_PENDING;
 	}

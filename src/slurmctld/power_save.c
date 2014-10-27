@@ -90,7 +90,8 @@ char *exc_nodes = NULL, *exc_parts = NULL;
 time_t last_config = (time_t) 0, last_suspend = (time_t) 0;
 uint16_t slurmd_timeout;
 
-bitstr_t *exc_node_bitmap = NULL, *suspend_node_bitmap = NULL;
+bitstr_t *exc_node_bitmap = NULL;
+bitstr_t *suspend_node_bitmap = NULL, *resume_node_bitmap = NULL;
 int   suspend_cnt,   resume_cnt;
 float suspend_cnt_f, resume_cnt_f;
 
@@ -137,6 +138,8 @@ static void _do_power_work(time_t now)
 		if (last_suspend) {
 			bit_nclear(suspend_node_bitmap, 0,
 				   (node_record_count - 1));
+			bit_nclear(resume_node_bitmap, 0,
+				   (node_record_count - 1));
 			last_suspend = (time_t) 0;
 		}
 	}
@@ -170,14 +173,15 @@ static void _do_power_work(time_t now)
 			bit_clear(power_node_bitmap, i);
 			bit_clear(avail_node_bitmap, i);
 			node_ptr->last_response = now + resume_timeout;
-			bit_set(wake_node_bitmap, i);
+			bit_set(wake_node_bitmap,    i);
+			bit_set(resume_node_bitmap,  i);
 		}
 
 		/* Suspend nodes as appropriate */
 		if (run_suspend 					&&
 		    (susp_state == 0)					&&
 		    ((suspend_rate == 0) || (suspend_cnt < suspend_rate)) &&
-		    IS_NODE_IDLE(node_ptr)				&&
+		    (IS_NODE_IDLE(node_ptr) || IS_NODE_DOWN(node_ptr))	&&
 		    (node_ptr->sus_job_cnt == 0)			&&
 		    (!IS_NODE_COMPLETING(node_ptr))			&&
 		    (!IS_NODE_POWER_UP(node_ptr))			&&
@@ -192,7 +196,9 @@ static void _do_power_work(time_t now)
 			suspend_cnt++;
 			suspend_cnt_f++;
 			node_ptr->node_state |= NODE_STATE_POWER_SAVE;
-			bit_set(power_node_bitmap, i);
+			node_ptr->node_state &= (~NODE_STATE_NO_RESPOND);
+			bit_set(avail_node_bitmap,   i);
+			bit_set(power_node_bitmap,   i);
 			bit_set(sleep_node_bitmap,   i);
 			bit_set(suspend_node_bitmap, i);
 			last_suspend = now;
@@ -245,7 +251,8 @@ static void _re_wake(void)
 		if (IS_NODE_ALLOCATED(node_ptr)   &&
 		    IS_NODE_NO_RESPOND(node_ptr)  &&
 		    !IS_NODE_POWER_SAVE(node_ptr) &&
-		    (bit_test(suspend_node_bitmap, i) == 0)) {
+		    (bit_test(suspend_node_bitmap, i) == 0) &&
+		    (bit_test(resume_node_bitmap,  i) == 0)) {
 			if (wake_node_bitmap == NULL) {
 				wake_node_bitmap =
 					bit_alloc(node_record_count);
@@ -618,6 +625,7 @@ static void *_init_power_save(void *arg)
 		goto fini;
 
 	suspend_node_bitmap = bit_alloc(node_record_count);
+	resume_node_bitmap  = bit_alloc(node_record_count);
 
 	while (slurmctld_config.shutdown_time == 0) {
 		sleep(1);
@@ -661,6 +669,7 @@ static void *_init_power_save(void *arg)
 
 fini:	_clear_power_config();
 	FREE_NULL_BITMAP(suspend_node_bitmap);
+	FREE_NULL_BITMAP(resume_node_bitmap);
 	_shutdown_power();
 	slurm_mutex_lock(&power_mutex);
 	power_save_enabled = false;

@@ -4,7 +4,8 @@
 
 <p>Hosted by the <a href="http:///www.cscs.ch">Swiss National Supercomputing Centre</a>
 
-<h1>Agenda</h1>
+
+<a name="agenda"><h1>Agenda</h1></a>
 
 <p>The 2014 Slurm User Group Meeting will be held on September 23 and 24
 in Lugano, Switzerland.
@@ -13,17 +14,23 @@ and site reports.
 The <a href="#schedule">Schedule</a>  amd <a href="#abstracts">Abstracts</a>
 are shown below.</p>
 
-<h2>Meeting Information</h2>
 <p>The meeting will be held at the
 <a href="http://www.lugano-tourism.ch/en/129/default.aspx">
 Convention Centre Lugano</a>, Lugano, Switzerland.</p>
 
-<h2>Hotel Information</h2>
-<p>Hotels may be booked through the Lugano Convention Centre (Palazzo dei Congressi).<br>
-<a href="https://www.aec-internet.it/booking_engine/prenota_congresso.htm?graph_be=4&n_tappe=1&headvar=ok&lingua_int=eng&id_stile=7434&id_congresso=54&id_canale=704">Hotel booking</a>.
 
-<h2>Registration</h2>
-<p>Information will be made available later.</p>
+<a name="registration"><h1>Registration</h1></a>
+<p>The conference cost is $350 per person for registration by 23 August and
+$400 per person for late registration.
+This includes presentations, tutorials, lunch and snacks on both days,
+plus dinner on Tuesday evening.<br>
+<a href="https://www.eventbrite.com/e/slurm-user-group-meeting-2014-tickets-12322056603">Register here</a>.</p>
+
+
+<a name="hotels"><h1>Hotel Information</h1></a>
+<p>Hotels may be booked through the Lugano Convention Centre (Palazzo dei Congressi).<br>
+<a href="https://www.aec-internet.it/booking_engine/prenota_congresso.htm?graph_be=4&n_tappe=1&headvar=ok&lingua_int=eng&id_stile=7434&id_congresso=54&id_canale=704">Hotel booking</a>.</p>
+
 
 <a name="schedule"><h1>Schedule</h1></a>
 
@@ -44,17 +51,17 @@ Convention Centre Lugano</a>, Lugano, Switzerland.</p>
  </tr>
 
 <tr>
-  <td>08:30 - 08:45</td>
+  <td>08:30 - 08:40</td>
   <td>Welcome</td>
-  <td>TBD (CSCS)</td>
+  <td>Colin McMurtrie (CSCS)</td>
   <td>Welcome to Slurm User Group Meeting</td>
 </tr>
 
 <tr>
-  <td>08:45 - 09:30</td>
+  <td>08:40 - 09:30</td>
   <td>Keynote</td>
-  <td>TBD</td>
-  <td>TBD</td>
+  <td>Prof. Felix Sch&uuml;rmann (EPFL)</td>
+  <td>Role and Challenges of Interactive Supercomputing in the Human Brain Project</td>
 </tr>
 
 <tr>
@@ -65,7 +72,7 @@ Convention Centre Lugano</a>, Lugano, Switzerland.</p>
 <tr>
   <td>09:45 - 10:15</td>
   <td>Technical</td>
-  <td>Morris Jette (SchedMD), Yiannis Georgiou (Bull)</td>
+  <td>Jacob Jenson (SchedMD), Yiannis Georgiou (Bull)</td>
   <td>Overview of Slurm Versions 14.03 and 14.11</td>
 </tr>
 <tr>
@@ -152,9 +159,12 @@ Convention Centre Lugano</a>, Lugano, Switzerland.</p>
 </tr>
 
 <tr>
-  <td bgcolor="#F0F1C9">17:00 - </td>
+  <td bgcolor="#F0F1C9">19:00 - </td>
   <td bgcolor="#F0F1C9">Dinner</td>
-  <td colspan="2" bgcolor="#F0F1C9">TBD</td>
+  <td colspan="2" bgcolor="#F0F1C9">Restaurant Pizzeria Cantinone<br>
+Piazza Cioccaro 8<br>
+Lugano<br>
+tel +41(0)91 923 10 68</td>
 </tr>
 </table>
 
@@ -195,7 +205,7 @@ Convention Centre Lugano</a>, Lugano, Switzerland.</p>
     <td>Technical</td>
     <td>Ryan Cox, Levi Morrison (Brigham Young
     University)</td>
-    <td>Level-based job prioritization</td>
+    <td>Fair Tree: Fairshare Algorithm for Slurm</td>
   </tr>
 
   <tr>
@@ -229,7 +239,7 @@ Convention Centre Lugano</a>, Lugano, Switzerland.</p>
   <tr>
     <td>11:45 - 12:15</td>
     <td>Technical</td>
-    <td>Danny Auble (SchedMD)</td>
+    <td>Morris Jette and Danny Auble (SchedMD)</td>
     <td>Slurm Native Workload Management on Cray Systems</td>
   </tr>
   <tr>
@@ -246,8 +256,8 @@ Convention Centre Lugano</a>, Lugano, Switzerland.</p>
   <tr>
     <td>13:45 - 14:05</td>
     <td>Site Report</td>
-    <td>Magnus Jonsson (Umea University)</td>
-    <td>Umea University Site Report</td>
+    <td>Magnus Jonsson (Ume&aring; University)</td>
+    <td>Ume&aring; University Site Report</td>
   </tr>
   <tr>
     <td>14:05 - 14:25</td>
@@ -278,7 +288,7 @@ Convention Centre Lugano</a>, Lugano, Switzerland.</p>
   <tr>
     <td>15:20 - 15:40</td>
     <td>Site Report</td>
-    <td>Benini Massimo (CSCS)</td>
+    <td>Massimo Benini (CSCS)</td>
     <td>CSCS Site Report</td>
   </tr>
   <tr>
@@ -310,8 +320,14 @@ Convention Centre Lugano</a>, Lugano, Switzerland.</p>
 
 <h2>September 23, 2014</h2>
 
+<h3>Keynote: Role and Challenges of Interactive Supercomputing in the Human Brain Project</h3>
+<p>Prof. Felix Sch&uuml;rmann (Ecole Polytechnique F&eacute;d&eacute;rale de Lausanne)</p>
+<p>Dr. Felix Sch&uuml;rmann is adjunct professor at the Ecole Polytechnique
+F&eacute;d&eacute;rale de Lausanne, co-director of the Blue Brain Project
+and involved in several research challenges of the European Human Brain Project.</p>
+
 <h3>Overview of Slurm Versions 14.03 and 14.11</h3>
-<p> Morris Jette (SchedMD), Yiannis Georgiou (Bull)</p>
+<p>Jacob Jenson (SchedMD), Yiannis Georgiou (Bull)</p>
 <p>This presentation will describe new capabilities provided in Slurm
   versions 14.03 (released March 2014) and planned for version 14.11
   (to be released in November 2014). Major enhancements in version 14.03
@@ -630,18 +646,19 @@ Convention Centre Lugano</a>, Lugano, Switzerland.</p>
 
 <h3>Level-based job prioritization</h3>
 <p>Ryan Cox and Levi Morrison (Brigham Young University)</p>
-<p>We will present about our new LEVEL_BASED job prioritization mechanism.
-  The algorithm prioritizes users such that users in an under-served account
-  will always have a higher fair share factor than users in an over-served
-  account.  It recurses through the account tree, calculates fair share at
-  each level, then uses bitwise math to ensure that the effect of usage and
-  shares below the current level cannot affect calculations at the current
-  level.</p>
-<p>Basically, if accounts A and B have the same shares but A has higher usage
-  than B then children of account A will have a lower fair share factor than
-  children of account B. This is not guaranteed in other prioritization methods.
-  LEVEL_BASED was also designed to reduce the likelihood of errors due to
-  floating point precision loss.</p>
+<p>We will begin by highlighting some problems with existing fairshare
+   algorithms.  We will then present about our new Fair Tree algorithm which
+   is designed to avoid these issues.</p>
+<p>Fair Tree prioritizes users such that if accounts A and B are siblings and
+   A has a higher fairshare factor than B, all children of A will have higher
+   fairshare factors than all children of B. The algorithm uses classic computer
+   science techniques to achieve this goal. First, the traditional fairshare
+   equation, 2**-(Usage/Shares), is used but it only considers an association
+   and its siblings, rather than including the effect of parents or children
+   in the equation. It then sorts the association tree by fairshare value to
+   create a rooted plane tree and uses a depth-first traversal to rank users
+   in the order they are found. This ranking is used to create the final
+   fairshare factor.</p>
 
 <h3>Integrating Layouts Framework in SLURM</h3>
 <p>Thomas Cadeau (BULL), Yiannis Georgiou (BULL), Matthieu Hautreux (CEA)</p>
@@ -716,7 +733,7 @@ Convention Centre Lugano</a>, Lugano, Switzerland.</p>
   implementation.</p>
 
 <h3>Slurm Native Workload Management on Cray Systems</h3>
-<p>Danny Auble (SchedMD)</p>
+<p>Morris Jette and Danny Auble (SchedMD)</p>
 <p>Cray’s Application Level Placement Scheduler (ALPS) software has
   recently been refactored to expose low level network management
   interfaces in a new library. Slurm is the first workload manager to
@@ -743,8 +760,8 @@ Convention Centre Lugano</a>, Lugano, Switzerland.</p>
   utilization. This presentation will describe upcoming Slurm
   development plans.</p>
 
-<h3>Umea University Site Report</h3>
-<p>Magnus Jonsson (Umea University)<p>
+<h3>Ume&aring; University Site Report</h3>
+<p>Magnus Jonsson (Ume&aring; University)<p>
 <p>Use of SPANK plugins to create a private temporary file systems for
   each job. This eliminates interference between jobs without the need
   to obey the TMPDIR environment variable. The module is using the
@@ -807,7 +824,7 @@ Convention Centre Lugano</a>, Lugano, Switzerland.</p>
 <p>CEA Site Report</p>
 
 <h3>CSCS Site Report</h3>
-<p>Benini Massimo (CSCS)</p>
+<p>Massimo Benini (CSCS)</p>
 <p>CSCS Site Report</p>
 
 <h3>Aalto University Site Report</h3>
@@ -849,6 +866,6 @@ Convention Centre Lugano</a>, Lugano, Switzerland.</p>
   system to dynamically allocate disk space on our test high-IOPS SSD
   scratch system.</p>
 
-<p style="text-align:center;">Last modified 11 July 2014</p>
+<p style="text-align:center;">Last modified 29 September 2014</p>
 
 <!--#include virtual="footer.txt"-->

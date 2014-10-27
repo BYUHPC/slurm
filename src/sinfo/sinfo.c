@@ -678,6 +678,11 @@ static bool _filter_out(node_info_t *node_ptr)
 					SELECT_NODEDATA_SUBCNT,
 					NODE_STATE_ALLOCATED,
 					&cpus);
+				if (params.cluster_flags & CLUSTER_FLAG_BG
+				    && !cpus &&
+				    (IS_NODE_ALLOCATED(node_ptr) ||
+				     IS_NODE_COMPLETING(node_ptr)))
+					cpus = node_ptr->cpus;
 				if (cpus) {
 					match = true;
 					break;
@@ -998,6 +1003,7 @@ static void _update_sinfo(sinfo_data_t *sinfo_ptr, node_info_t *node_ptr,
 			total_cpus = total_nodes * single_node_cpus;
 
 			if ((base_state == NODE_STATE_ALLOCATED) ||
+			    (base_state == NODE_STATE_MIXED) ||
 			    (node_ptr->node_state & NODE_STATE_COMPLETING)) {
 				sinfo_ptr->nodes_alloc += total_nodes;
 				sinfo_ptr->cpus_alloc += total_cpus;
@@ -1017,6 +1023,7 @@ static void _update_sinfo(sinfo_data_t *sinfo_ptr, node_info_t *node_ptr,
 		}
 	} else {
 		if ((base_state == NODE_STATE_ALLOCATED) ||
+		    (base_state == NODE_STATE_MIXED) ||
 		    IS_NODE_COMPLETING(node_ptr))
 			sinfo_ptr->nodes_alloc += total_nodes;
 		else if (IS_NODE_DRAIN(node_ptr)
@@ -1099,6 +1106,8 @@ static int _handle_subgrps(List sinfo_list, uint16_t part_num,
 	 * then we can use this to tack on the end of the node name
 	 * the subgrp stuff.  On bluegene systems this would be nice
 	 * to see the ionodes in certain states.
+	 * When asking for nodes that are reserved, we need to return
+	 * all states of those nodes.
 	 */
 	if (params.state_list)
 		iterator = list_iterator_create(params.state_list);
@@ -1109,9 +1118,10 @@ static int _handle_subgrps(List sinfo_list, uint16_t part_num,
 			while ((node_state = list_next(iterator))) {
 				tmp_node_ptr->node_state = *node_state;
 				if ((((state[i] == NODE_STATE_ALLOCATED)
-				     && IS_NODE_DRAINING(tmp_node_ptr))
-				    || (*node_state == NODE_STATE_DRAIN))
-				   || (*node_state == state[i]))
+				      && IS_NODE_DRAINING(tmp_node_ptr))
+				     || (*node_state == NODE_STATE_DRAIN))
+				    || (*node_state == state[i])
+				    || (*node_state == NODE_STATE_RES))
 					break;
 			}
 			list_iterator_reset(iterator);
@@ -1137,8 +1147,9 @@ static int _handle_subgrps(List sinfo_list, uint16_t part_num,
 			node_info_t tmp_node, *tmp_node_ptr = &tmp_node;
 			tmp_node_ptr->node_state = *node_state;
 			if (((*node_state == NODE_STATE_DRAIN)
-			    || IS_NODE_DRAINED(tmp_node_ptr))
-			   || (*node_state == NODE_STATE_IDLE))
+			     || IS_NODE_DRAINED(tmp_node_ptr))
+			    || (*node_state == NODE_STATE_IDLE)
+			    || (*node_state == NODE_STATE_RES))
 				break;
 		}
 		list_iterator_destroy(iterator);

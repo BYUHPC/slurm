@@ -120,6 +120,7 @@ EXTRA_DIST = \
 	test1.95.prog.upc		\
 	test1.96			\
 	test1.96.prog.c			\
+	test1.97			\
 	test2.1				\
 	test2.2				\
 	test2.3				\
@@ -297,6 +298,7 @@ EXTRA_DIST = \
 	test12.5			\
 	test12.6			\
 	test12.6.prog.c			\
+	test12.7			\
 	test13.1			\
 	test13.2			\
 	test14.1			\
@@ -425,6 +427,8 @@ EXTRA_DIST = \
 	test21.28			\
 	test21.29			\
 	test21.30                       \
+	test21.31			\
+	test21.32			\
 	inc21.30.1                      \
 	inc21.30.2                      \
 	inc21.30.3                      \

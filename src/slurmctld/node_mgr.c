@@ -496,6 +496,8 @@ extern int load_all_node_state ( bool state_only )
 					node_ptr->real_memory   = real_memory;
 					node_ptr->tmp_disk      = tmp_disk;
 				}
+				if (node_state & NODE_STATE_MAINT)
+					node_ptr->node_state |= NODE_STATE_MAINT;
 				if (node_state & NODE_STATE_POWER_UP) {
 					if (power_save_mode) {
 						node_ptr->node_state |=
@@ -570,7 +572,8 @@ extern int load_all_node_state ( bool state_only )
 					obj_protocol_version;
 			else
 				node_ptr->protocol_version = protocol_version;
-			node_ptr->last_idle	= now;
+			if (!IS_NODE_POWER_SAVE(node_ptr))
+				node_ptr->last_idle = now;
 			select_g_update_node_state(node_ptr);
 		}
 
@@ -702,8 +705,7 @@ extern void pack_all_node (char **buffer_ptr, int *buffer_size,
 			if (((show_flags & SHOW_ALL) == 0) && (uid != 0) &&
 			    (_node_is_hidden(node_ptr)))
 				hidden = true;
-			else if (IS_NODE_FUTURE(node_ptr) &&
-				 !IS_NODE_MAINT(node_ptr)) /* reboot req sent */
+			else if (IS_NODE_FUTURE(node_ptr))
 				hidden = true;
 			else if (IS_NODE_CLOUD(node_ptr) &&
 				 IS_NODE_POWER_SAVE(node_ptr))
@@ -787,8 +789,7 @@ extern void pack_one_node (char **buffer_ptr, int *buffer_size,
 			if (((show_flags & SHOW_ALL) == 0) && (uid != 0) &&
 			    (_node_is_hidden(node_ptr)))
 				hidden = true;
-			else if (IS_NODE_FUTURE(node_ptr) &&
-				 !IS_NODE_MAINT(node_ptr)) /* reboot req sent */
+			else if (IS_NODE_FUTURE(node_ptr))
 				hidden = true;
 			else if (IS_NODE_CLOUD(node_ptr) &&
 				 IS_NODE_POWER_SAVE(node_ptr))
@@ -1262,7 +1263,10 @@ int update_node ( update_node_msg_t * update_node_msg )
 					bit_set (avail_node_bitmap, node_inx);
 				bit_set (idle_node_bitmap, node_inx);
 				bit_set (up_node_bitmap, node_inx);
-				node_ptr->last_idle = now;
+				if (IS_NODE_POWER_SAVE(node_ptr))
+					node_ptr->last_idle = 0;
+				else
+					node_ptr->last_idle = now;
 			} else if (state_val == NODE_STATE_ALLOCATED) {
 				if (!IS_NODE_DRAIN(node_ptr) &&
 				    !IS_NODE_FAIL(node_ptr)  &&
@@ -1288,23 +1292,52 @@ int update_node ( update_node_msg_t * update_node_msg )
 					(nonstop_ops.node_fail)(NULL, node_ptr);
 			} else if (state_val == NODE_STATE_POWER_SAVE) {
 				if (IS_NODE_POWER_SAVE(node_ptr)) {
-					verbose("node %s already powered down",
-						this_node_name);
+					node_ptr->last_idle = 0;
+					node_ptr->node_state &=
+						(~NODE_STATE_POWER_SAVE);
+					info("power down request repeating "
+					     "for node %s", this_node_name);
 				} else {
+					if (IS_NODE_DOWN(node_ptr) &&
+					    IS_NODE_POWER_UP(node_ptr)) {
+						/* Abort power up request */
+						node_ptr->node_state &=
+							(~NODE_STATE_POWER_UP);
+#ifndef HAVE_FRONT_END
+						node_ptr->node_state |=
+							NODE_STATE_NO_RESPOND;
+#endif
+						node_ptr->node_state =
+							NODE_STATE_IDLE |
+							(node_ptr->node_state &
+							 NODE_STATE_FLAGS);
+					}
 					node_ptr->last_idle = 0;
 					info("powering down node %s",
 					     this_node_name);
 				}
+				free(this_node_name);
 				continue;
 			} else if (state_val == NODE_STATE_POWER_UP) {
 				if (!IS_NODE_POWER_SAVE(node_ptr)) {
-					verbose("node %s already powered up",
-						this_node_name);
+					if (IS_NODE_POWER_UP(node_ptr)) {
+						node_ptr->last_idle = now;
+						node_ptr->node_state |=
+							NODE_STATE_POWER_SAVE;
+						info("power up request "
+						     "repeating for node %s",
+						     this_node_name);
+					} else {
+						verbose("node %s is already "
+							"powered up",
+							this_node_name);
+					}
 				} else {
 					node_ptr->last_idle = now;
 					info("powering up node %s",
 					     this_node_name);
 				}
+				free(this_node_name);
 				continue;
 			} else if (state_val == NODE_STATE_NO_RESPOND) {
 				node_ptr->node_state |= NODE_STATE_NO_RESPOND;
@@ -1713,6 +1746,12 @@ extern int drain_nodes ( char *nodes, char *reason, uint32_t reason_uid )
 		return ESLURM_INVALID_NODE_NAME;
 	}
 
+#ifdef HAVE_ALPS_CRAY
+	error("We cannot drain nodes on a Cray/ALPS system, "
+	      "use native Cray tools such as xtprocadmin(8).");
+	return SLURM_SUCCESS;
+#endif
+
 	if ( (host_list = hostlist_create (nodes)) == NULL) {
 		error ("hostlist_create error on %s: %m", nodes);
 		return ESLURM_INVALID_NODE_NAME;
@@ -2078,10 +2117,9 @@ extern int validate_node_specs(slurm_node_registration_status_msg_t *reg_msg,
 			}
 		} else if (IS_NODE_DOWN(node_ptr) &&
 			   ((slurmctld_conf.ret2service == 2) ||
+			    !xstrcmp(node_ptr->reason, "Scheduled reboot") ||
 			    ((slurmctld_conf.ret2service == 1) &&
-			     (node_ptr->reason != NULL) &&
-			     (strncmp(node_ptr->reason, "Not responding", 14)
-					== 0)))) {
+			     !xstrcmp(node_ptr->reason, "Not responding")))) {
 			if (reg_msg->job_count) {
 				node_ptr->node_state = NODE_STATE_ALLOCATED |
 					node_flags;
@@ -2439,10 +2477,11 @@ extern int validate_nodes_via_front_end(
 				}
 			} else if (IS_NODE_DOWN(node_ptr) &&
 				   ((slurmctld_conf.ret2service == 2) ||
+				    !xstrcmp(node_ptr->reason,
+					     "Scheduled reboot") ||
 				    ((slurmctld_conf.ret2service == 1) &&
-				     (node_ptr->reason != NULL) &&
-				     (strncmp(node_ptr->reason,
-					      "Not responding", 14) == 0)))) {
+				     !xstrcmp(node_ptr->reason,
+					      "Not responding")))) {
 				update_node_state = true;
 				*newly_up = true;
 				if (node_ptr->run_job_cnt) {
@@ -2554,9 +2593,10 @@ static void _node_did_resp(front_end_record_t *fe_ptr)
 		fe_ptr->node_state = NODE_STATE_IDLE | node_flags;
 	}
 	if (IS_NODE_DOWN(fe_ptr) &&
-	    (slurmctld_conf.ret2service == 1) &&
-	    (fe_ptr->reason != NULL) &&
-	    (strncmp(fe_ptr->reason, "Not responding", 14) == 0)) {
+	    ((slurmctld_conf.ret2service == 2) ||
+	     !xstrcmp(fe_ptr->reason, "Scheduled reboot") ||
+	     ((slurmctld_conf.ret2service == 1) &&
+	      !xstrcmp(fe_ptr->reason, "Not responding")))) {
 		last_front_end_update = now;
 		fe_ptr->node_state = NODE_STATE_IDLE | node_flags;
 		info("node_did_resp: node %s returned to service",
@@ -2605,9 +2645,10 @@ static void _node_did_resp(struct node_record *node_ptr)
 		}
 	}
 	if (IS_NODE_DOWN(node_ptr) &&
-	    (slurmctld_conf.ret2service == 1) &&
-	    (node_ptr->reason != NULL) &&
-	    (strncmp(node_ptr->reason, "Not responding", 14) == 0)) {
+	    ((slurmctld_conf.ret2service == 2) ||
+	     !xstrcmp(node_ptr->reason, "Scheduled reboot") ||
+	     ((slurmctld_conf.ret2service == 1) &&
+	      !xstrcmp(node_ptr->reason, "Not responding")))) {
 		node_ptr->last_idle = now;
 		node_ptr->node_state = NODE_STATE_IDLE | node_flags;
 		info("node_did_resp: node %s returned to service",

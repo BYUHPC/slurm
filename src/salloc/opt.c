@@ -117,6 +117,7 @@
 #define OPT_TIME_VAL	0x17
 #define OPT_PROFILE     0x18
 #define OPT_CORE_SPEC   0x19
+#define OPT_HINT	0x1a
 
 /* generic getopt_long flags, integers and *not* valid characters */
 #define LONG_OPT_CPU_BIND    0x101
@@ -404,6 +405,8 @@ env_vars_t env_vars[] = {
   {"SALLOC_EXCLUSIVE",     OPT_EXCLUSIVE,  NULL,               NULL          },
   {"SALLOC_GEOMETRY",      OPT_GEOMETRY,   NULL,               NULL          },
   {"SALLOC_IMMEDIATE",     OPT_IMMEDIATE,  NULL,               NULL          },
+  {"SALLOC_HINT",          OPT_HINT,       NULL,               NULL          },
+  {"SLURM_HINT",           OPT_HINT,       NULL,               NULL          },
   {"SALLOC_JOBID",         OPT_JOBID,      NULL,               NULL          },
   {"SALLOC_KILL_CMD",      OPT_KILL_CMD,   NULL,               NULL          },
   {"SALLOC_MEM_BIND",      OPT_MEM_BIND,   NULL,               NULL          },
@@ -544,9 +547,24 @@ _process_env_var(env_vars_t *e, const char *val)
 		opt.overcommit = true;
 		break;
 	case OPT_CPU_BIND:
+		verbose("The --cpu_bind option has been deprecated in "
+			"salloc, --cpu_bind is for srun only going "
+			"forward.");
 		if (slurm_verify_cpu_bind(val, &opt.cpu_bind,
 					  &opt.cpu_bind_type))
 			exit(error_exit);
+		break;
+
+	case OPT_HINT:
+		/* Keep after other options filled in */
+		if (verify_hint(val,
+				&opt.sockets_per_node,
+				&opt.cores_per_socket,
+				&opt.threads_per_core,
+				&opt.ntasks_per_core,
+				&opt.cpu_bind_type)) {
+			exit(error_exit);
+		}
 		break;
 	case OPT_MEM_BIND:
 		if (slurm_verify_mem_bind(val, &opt.mem_bind,
@@ -1151,6 +1169,9 @@ void set_options(const int argc, char **argv)
 			opt.network = xstrdup(optarg);
 			break;
 		case LONG_OPT_CPU_BIND:
+			verbose("The --cpu_bind option has been deprecated in "
+				"salloc, --cpu_bind is for srun only going "
+				"forward.");
 			if (slurm_verify_cpu_bind(optarg, &opt.cpu_bind,
 						  &opt.cpu_bind_type))
 				exit(error_exit);
@@ -1857,8 +1878,6 @@ static void _opt_list(void)
 	info("ntasks-per-socket : %d", opt.ntasks_per_socket);
 	info("ntasks-per-core   : %d", opt.ntasks_per_core);
 	info("plane_size        : %u", opt.plane_size);
-	info("cpu_bind          : %s",
-	     opt.cpu_bind == NULL ? "default" : opt.cpu_bind);
 	info("mem_bind          : %s",
 	     opt.mem_bind == NULL ? "default" : opt.mem_bind);
 	str = print_commandline(command_argc, command_argv);
@@ -1899,7 +1918,7 @@ static void _usage(void)
 "              [--bell] [--no-bell] [--kill-command[=signal]]\n"
 "              [--nodefile=file] [--nodelist=hosts] [--exclude=hosts]\n"
 "              [--network=type] [--mem-per-cpu=MB] [--qos=qos]\n"
-"              [--cpu_bind=...] [--mem_bind=...] [--reservation=name]\n"
+"              [--mem_bind=...] [--reservation=name]\n"
 "              [--time-min=minutes] [--gres=list] [--profile=...]\n"
 "              [--switches=max-switches[@max-time-to-wait]]\n"
 "              [--core-spec=cores]\n"
@@ -1992,8 +2011,6 @@ static void _help(void)
 	if (conf->task_plugin != NULL
 	    && strcasecmp(conf->task_plugin, "task/affinity") == 0) {
 		printf(
-"      --cpu_bind=             Bind tasks to CPUs\n"
-"                              (see \"--cpu_bind=help\" for options)\n"
 "      --hint=                 Bind tasks according to application hints\n"
 "                              (see \"--hint=help\" for options)\n"
 "      --mem_bind=             Bind memory to locality domains (ldom)\n"

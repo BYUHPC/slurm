@@ -805,6 +805,7 @@ static uint32_t _apply_priority_weights(time_t start_time,
 			      job_ptr->priority_array[i]);
 			i++;
 		}
+		list_iterator_destroy(part_iterator);
 	}
 
 	if (priority_debug) {

@@ -507,12 +507,17 @@ static bool _is_account_valid(char *account)
 	assoc_rec.acct      = account;
 
 	if (assoc_mgr_fill_in_assoc(acct_db_conn, &assoc_rec,
-				    accounting_enforce, &assoc_ptr)) {
+				    accounting_enforce, &assoc_ptr, false)) {
 		return false;
 	}
 	return true;
 }
 
+/* Since the returned assoc_list is full of pointers from the
+ * assoc_mgr_association_list assoc_mgr_lock_t READ_LOCK on
+ * associations must be set before calling this function and while
+ * handling it after a return.
+ */
 static int _append_assoc_list(List assoc_list, slurmdb_association_rec_t *assoc)
 {
 	int rc = ESLURM_INVALID_ACCOUNT;
@@ -520,7 +525,7 @@ static int _append_assoc_list(List assoc_list, slurmdb_association_rec_t *assoc)
 	if (assoc_mgr_fill_in_assoc(
 		    acct_db_conn, assoc,
 		    accounting_enforce,
-		    &assoc_ptr)) {
+		    &assoc_ptr, true)) {
 		if (accounting_enforce & ACCOUNTING_ENFORCE_ASSOCS) {
 			error("No association for user %u and account %s",
 			      assoc->uid, assoc->acct);
@@ -545,6 +550,9 @@ static int _set_assoc_list(slurmctld_resv_t *resv_ptr)
 	int rc = SLURM_SUCCESS, i = 0, j = 0;
 	List assoc_list_allow = NULL, assoc_list_deny = NULL, assoc_list;
 	slurmdb_association_rec_t assoc, *assoc_ptr = NULL;
+	assoc_mgr_lock_t locks = { READ_LOCK, NO_LOCK,
+				   NO_LOCK, NO_LOCK, NO_LOCK, NO_LOCK };
+
 
 	/* no need to do this if we can't ;) */
 	if (!association_based_accounting)
@@ -556,6 +564,7 @@ static int _set_assoc_list(slurmctld_resv_t *resv_ptr)
 	memset(&assoc, 0, sizeof(slurmdb_association_rec_t));
 	xfree(resv_ptr->assoc_list);
 
+	assoc_mgr_lock(&locks);
 	if (resv_ptr->account_cnt && resv_ptr->user_cnt) {
 		if (!resv_ptr->account_not && !resv_ptr->user_not) {
 			/* Add every association that matches both account
@@ -566,8 +575,8 @@ static int _set_assoc_list(slurmctld_resv_t *resv_ptr)
 					       sizeof(slurmdb_association_rec_t));
 					assoc.acct = resv_ptr->account_list[j];
 					assoc.uid  = resv_ptr->user_list[i];
-					rc = _append_assoc_list(assoc_list_allow,
-								&assoc);
+					rc = _append_assoc_list(
+						assoc_list_allow, &assoc);
 					if (rc != SLURM_SUCCESS)
 						goto end_it;
 				}
@@ -676,6 +685,8 @@ static int _set_assoc_list(slurmctld_resv_t *resv_ptr)
 end_it:
 	list_destroy(assoc_list_allow);
 	list_destroy(assoc_list_deny);
+	assoc_mgr_unlock(&locks);
+
 	return rc;
 }
 
@@ -2160,6 +2171,11 @@ extern int update_resv(resv_desc_msg_t *resv_desc_ptr)
 	}
 
 	if (resv_desc_ptr->start_time != (time_t) NO_VAL) {
+		if (resv_ptr->start_time <= time(NULL)) {
+			info("%s: reservation already started", __func__);
+			error_code = ESLURM_INVALID_TIME_VALUE;
+			goto update_failure;
+		}
 		if (resv_desc_ptr->start_time < (now - 60)) {
 			info("Reservation request has invalid start time");
 			error_code = ESLURM_INVALID_TIME_VALUE;
@@ -2168,7 +2184,7 @@ extern int update_resv(resv_desc_msg_t *resv_desc_ptr)
 		resv_ptr->start_time_prev = resv_ptr->start_time;
 		resv_ptr->start_time = resv_desc_ptr->start_time;
 		resv_ptr->start_time_first = resv_desc_ptr->start_time;
-		if (resv_ptr->duration) {
+		if (resv_ptr->duration != NO_VAL) {
 			resv_ptr->end_time = resv_ptr->start_time_first +
 				(resv_ptr->duration * 60);
 		}
@@ -2363,6 +2379,34 @@ static void _clear_job_resv(slurmctld_resv_t *resv_ptr)
 	list_iterator_destroy(job_iterator);
 }
 
+static bool _match_user_assoc(char *assoc_str, List assoc_list, bool deny)
+{
+	ListIterator itr;
+	bool found = 0;
+	slurmdb_association_rec_t *assoc;
+	char tmp_char[1000];
+
+	if (!assoc_str || !assoc_list || !list_count(assoc_list))
+		return false;
+
+	itr = list_iterator_create(assoc_list);
+	while ((assoc = list_next(itr))) {
+		while (assoc) {
+			snprintf(tmp_char, sizeof(tmp_char), ",%s%u,",
+				 deny ? "-" : "", assoc->id);
+			if (strstr(assoc_str, tmp_char)) {
+				found = 1;
+				goto end_it;
+			}
+			assoc = assoc->usage->parent_assoc_ptr;
+		}
+	}
+end_it:
+	list_iterator_destroy(itr);
+
+	return found;
+}
+
 /* Delete an exiting resource reservation */
 extern int delete_resv(reservation_name_msg_t *resv_desc_ptr)
 {
@@ -2427,6 +2471,12 @@ extern void show_resv(char **buffer_ptr, int *buffer_size, uid_t uid,
 	int tmp_offset;
 	Buf buffer;
 	time_t now = time(NULL);
+	List assoc_list = NULL;
+	bool check_permissions = false;
+	assoc_mgr_lock_t locks = { READ_LOCK, NO_LOCK,
+				   NO_LOCK, NO_LOCK,
+				   NO_LOCK, NO_LOCK };
+
 	DEF_TIMERS;
 
 	START_TIMER;
@@ -2443,25 +2493,81 @@ extern void show_resv(char **buffer_ptr, int *buffer_size, uid_t uid,
 	pack32(resv_packed, buffer);
 	pack_time(now, buffer);
 
+	/* Create this list once since it will not change durning this call. */
+	if ((slurmctld_conf.private_data & PRIVATE_DATA_RESERVATIONS)
+	    && !validate_operator(uid)) {
+		slurmdb_association_rec_t assoc;
+
+		check_permissions = true;
+
+		memset(&assoc, 0, sizeof(slurmdb_association_rec_t));
+		assoc.uid = uid;
+
+		assoc_list = list_create(NULL);
+
+		assoc_mgr_lock(&locks);
+		if (assoc_mgr_get_user_assocs(acct_db_conn, &assoc,
+					      accounting_enforce, assoc_list)
+		    != SLURM_SUCCESS)
+			goto no_assocs;
+	}
+
 	/* write individual reservation records */
 	iter = list_iterator_create(resv_list);
 	while ((resv_ptr = (slurmctld_resv_t *) list_next(iter))) {
-		if ((slurmctld_conf.private_data & PRIVATE_DATA_RESERVATIONS)
-		    && !validate_operator(uid)) {
-			int i = 0;
-			for (i=0; i<resv_ptr->user_cnt; i++) {
-				if (resv_ptr->user_list[i] == uid)
-					break;
-			}
+		if (check_permissions) {
+			/* Determine if we have access */
+			if ((accounting_enforce & ACCOUNTING_ENFORCE_ASSOCS)
+			    && resv_ptr->assoc_list) {
+				/* Check to see if the association is
+				 * here or the parent association is
+				 * listed in the valid associations.
+				 */
+				if (strchr(resv_ptr->assoc_list, '-')) {
+					if (_match_user_assoc(
+						    resv_ptr->assoc_list,
+						    assoc_list,
+						    true))
+						continue;
+				}
 
-			if (i >= resv_ptr->user_cnt)
-				continue;
+				if (strstr(resv_ptr->assoc_list, ",1") ||
+				    strstr(resv_ptr->assoc_list, ",2") ||
+				    strstr(resv_ptr->assoc_list, ",3") ||
+				    strstr(resv_ptr->assoc_list, ",4") ||
+				    strstr(resv_ptr->assoc_list, ",5") ||
+				    strstr(resv_ptr->assoc_list, ",6") ||
+				    strstr(resv_ptr->assoc_list, ",7") ||
+				    strstr(resv_ptr->assoc_list, ",8") ||
+				    strstr(resv_ptr->assoc_list, ",9") ||
+				    strstr(resv_ptr->assoc_list, ",0")) {
+					if (!_match_user_assoc(
+						    resv_ptr->assoc_list,
+						    assoc_list, false))
+						continue;
+				}
+			} else {
+				int i = 0;
+				for (i = 0; i < resv_ptr->user_cnt; i++) {
+					if (resv_ptr->user_list[i] == uid)
+						break;
+				}
+
+				if (i >= resv_ptr->user_cnt)
+					continue;
+			}
 		}
 
 		_pack_resv(resv_ptr, buffer, false, protocol_version);
 		resv_packed++;
 	}
 	list_iterator_destroy(iter);
+
+no_assocs:
+	if (check_permissions) {
+		FREE_NULL_LIST(assoc_list);
+		assoc_mgr_unlock(&locks);
+	}
 
 	/* put the real record count in the message body header */
 	tmp_offset = get_buf_offset(buffer);
@@ -3066,7 +3172,7 @@ static int  _select_nodes(resv_desc_msg_t *resv_desc_ptr,
 				      "full_nodes is zero");
 				resv_ptr->full_nodes = 1;
 			}
-			if (resv_ptr->full_nodes) {
+			if (resv_ptr->full_nodes || !resv_desc_ptr->core_cnt) {
 				bit_not(resv_ptr->node_bitmap);
 				bit_and(node_bitmap, resv_ptr->node_bitmap);
 				bit_not(resv_ptr->node_bitmap);
@@ -3357,6 +3463,11 @@ static bitstr_t *_pick_idle_node_cnt(bitstr_t *avail_bitmap,
 		return select_g_resv_test(avail_bitmap, node_cnt,
 					  resv_desc_ptr->core_cnt, core_bitmap,
 					  resv_desc_ptr->flags);
+	} else if ((node_cnt == 0) &&
+		   ((resv_desc_ptr->core_cnt == NULL) ||
+		    (resv_desc_ptr->core_cnt[0] == 0)) &&
+		   (resv_desc_ptr->flags & RESERVE_FLAG_LIC_ONLY)) {
+		return bit_alloc(bit_size(avail_bitmap));
 	}
 
 	orig_bitmap = bit_copy(avail_bitmap);
@@ -3476,7 +3587,7 @@ static int _valid_job_access_resv(struct job_record *job_ptr,
 				    acct_db_conn, &assoc_rec,
 				    accounting_enforce,
 				    (slurmdb_association_rec_t **)
-				    &job_ptr->assoc_ptr))
+				    &job_ptr->assoc_ptr, false))
 				goto end_it;
 		}
 
@@ -3811,7 +3922,7 @@ extern int job_test_resv(struct job_record *job_ptr, time_t *when,
 		if (slurmctld_conf.debug_flags & DEBUG_FLAG_RESERVATION) {
 			char *nodes = bitmap2node_name(*node_bitmap);
 			info("job_test_resv: job:%u reservation:%s nodes:%s",
-			     job_ptr->job_id, nodes, job_ptr->resv_name);
+			     job_ptr->job_id, job_ptr->resv_name, nodes);
 			xfree(nodes);
 		}
 
@@ -4163,15 +4274,20 @@ extern int send_resvs_to_accounting(void)
 {
 	ListIterator itr = NULL;
 	slurmctld_resv_t *resv_ptr;
+	slurmctld_lock_t node_write_lock = {
+		NO_LOCK, NO_LOCK, WRITE_LOCK, READ_LOCK };
 
 	if (!resv_list)
 		return SLURM_SUCCESS;
 
+	lock_slurmctld(node_write_lock);
+
 	itr = list_iterator_create(resv_list);
-	while ((resv_ptr = list_next(itr))) {
+	while ((resv_ptr = list_next(itr)))
 		_post_resv_create(resv_ptr);
-	}
 	list_iterator_destroy(itr);
+
+	unlock_slurmctld(node_write_lock);
 
 	return SLURM_SUCCESS;
 }
@@ -4269,15 +4385,22 @@ extern void update_assocs_in_resvs(void)
 {
 	slurmctld_resv_t *resv_ptr = NULL;
 	ListIterator  iter = NULL;
+	slurmctld_lock_t node_write_lock = {
+		NO_LOCK, NO_LOCK, WRITE_LOCK, READ_LOCK };
 
-	if (!resv_list)
+	if (!resv_list) {
 		error("No reservation list given for updating associations");
+		return;
+	}
+
+	lock_slurmctld(node_write_lock);
 
 	iter = list_iterator_create(resv_list);
-	while ((resv_ptr = list_next(iter))) {
+	while ((resv_ptr = list_next(iter)))
 		_set_assoc_list(resv_ptr);
-	}
 	list_iterator_destroy(iter);
+
+	unlock_slurmctld(node_write_lock);
 }
 
 extern void update_part_nodes_in_resv(struct part_record *part_ptr)
@@ -4314,19 +4437,21 @@ static void _set_nodes_flags(slurmctld_resv_t *resv_ptr, time_t now,
 	struct node_record *node_ptr;
 
 	if (!resv_ptr->node_bitmap) {
-		error("_set_nodes_flags: reservation %s lacks a bitmap",
-		      resv_ptr->name);
+		error("%s: reservation %s lacks a bitmap",
+		      __func__, resv_ptr->name);
 		return;
 	}
 
 	i_first = bit_ffs(resv_ptr->node_bitmap);
 	if (i_first < 0) {
-		error("_set_nodes_flags: reservation %s includes no nodes",
-		      resv_ptr->name);
+		if ((resv_ptr->flags & RESERVE_FLAG_LIC_ONLY) == 0) {
+			error("%s: reservation %s includes no nodes",
+			      __func__, resv_ptr->name);
+		}
 		return;
 	}
 	i_last  = bit_fls(resv_ptr->node_bitmap);
-	for (i=i_first; i<=i_last; i++) {
+	for (i = i_first; i <= i_last; i++) {
 		if (!bit_test(resv_ptr->node_bitmap, i))
 			continue;
 

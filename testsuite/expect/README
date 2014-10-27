@@ -209,6 +209,7 @@ test1.93   Test of LAM-MPI functionality
 test1.94   Test of MPICH2 task spawn logic
 test1.95   Basic UPC (Unified Parallel C) test via srun.
 test1.96   Basic SHMEM test via srun.
+test1.97   Test that --ntask-per-node and -c options are enforced
 **NOTE**   The above tests for multiple processor/partition systems only
 
 test2.#    Testing of scontrol options (to be run as unprivileged user).
@@ -427,6 +428,7 @@ test12.3   Test sacct filtering of records by account and job name.
 test12.4   Test sacct --b, g, j, l, n, p, u, v options.
 test12.5   Test sacct --helpformat option.
 test12.6   Test hdf5 acct_gather_profile (--profile=task)
+test12.7   Validate that -D shows the correct state when jobs are requeued.
 
 test13.#   Testing of switch plugins
 ====================================
@@ -609,6 +611,7 @@ test21.28  sacctmgr abort delete
 test21.29  sacctmgr clear (modify) QoS values
 test21.30  sacctmgr test if the QoS values are enforced
 test21.31  sacctmgr modify Resource values
+test21.32  Validate that mod qos =,+=,-= change the preempt value
 
 
 test22.#   Testing of sreport commands and options.

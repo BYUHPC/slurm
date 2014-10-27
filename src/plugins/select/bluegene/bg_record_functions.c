@@ -272,7 +272,7 @@ extern void process_nodes(bg_record_t *bg_record, bool startup)
 			break;
 	}
 	if (dim < SYSTEM_DIMENSIONS) {
-		/* means we have more than 1 base partition */
+		/* means we have more than 1 midplane */
 		for (dim = 0; dim < SYSTEM_DIMENSIONS; dim++) {
 			if (bg_record->geo[dim] != cluster_dims[dim])
 				break;
@@ -505,7 +505,8 @@ extern int bg_record_cmpf_inc(void *r1, void *r2)
 
 /*
  * Comparator used for sorting blocks from earliest available to lastest
- *
+ * This will return the fullest shared midplane blocks first
+ * regardless if it is the completely available sooner or not.
  * returns: -1: rec_a < rec_b   0: rec_a == rec_b   1: rec_a > rec_b
  *
  */
@@ -550,6 +551,69 @@ extern int bg_record_sort_aval_inc(void *r1, void *r2)
 		return 1;
 	else if (rec_a->avail_job_end < rec_b->avail_job_end)
 		return -1;
+
+	/* if (!job_ptr_a && job_ptr_b) */
+	/* 	return -1; */
+	/* else if (job_ptr_a && !job_ptr_b) */
+	/* 	return 1; */
+	/* else if (job_ptr_a && job_ptr_b) { */
+	/* 	if (job_ptr_a->end_time > job_ptr_b->end_time) */
+	/* 		return 1; */
+	/* 	else if (job_ptr_a->end_time < job_ptr_b->end_time) */
+	/* 		return -1; */
+	/* } */
+
+	return bg_record_cmpf_inc(&rec_a, &rec_b);
+}
+
+/*
+ * Comparator used for sorting blocks from earliest available to lastest
+ * based primarily when the last job is available.
+ * returns: -1: rec_a < rec_b   0: rec_a == rec_b   1: rec_a > rec_b
+ *
+ */
+extern int bg_record_sort_aval_time_inc(void *r1, void *r2)
+{
+	bg_record_t* rec_a = *(bg_record_t **)r1;
+	bg_record_t* rec_b = *(bg_record_t **)r2;
+
+	if ((rec_a->job_running == BLOCK_ERROR_STATE)
+	    && (rec_b->job_running != BLOCK_ERROR_STATE))
+		return 1;
+	else if ((rec_a->job_running != BLOCK_ERROR_STATE)
+		 && (rec_b->job_running == BLOCK_ERROR_STATE))
+		return -1;
+
+	if (!rec_a->avail_set)
+		_set_block_avail(rec_a);
+
+	if (!rec_b->avail_set)
+		_set_block_avail(rec_b);
+
+	/* Don't use this check below.  It will mess up preemption by
+	   sending this smaller block to the back of the list just
+	   because it is fully used.
+	*/
+	/* if (!rec_a->avail_cnode_cnt && rec_b->avail_cnode_cnt) */
+	/* 	return 1; */
+	/* else if (rec_a->avail_cnode_cnt && !rec_b->avail_cnode_cnt) */
+	/* 	return -1; */
+
+
+	if (rec_a->avail_job_end > rec_b->avail_job_end)
+		return 1;
+	else if (rec_a->avail_job_end < rec_b->avail_job_end)
+		return -1;
+
+	if (rec_a->job_list && rec_b->job_list) {
+		/* we only want to use this sort on 1 midplane blocks
+		   that are used for sharing
+		*/
+		if (rec_a->avail_cnode_cnt > rec_b->avail_cnode_cnt)
+			return 1;
+		else if (rec_a->avail_cnode_cnt < rec_b->avail_cnode_cnt)
+			return -1;
+	}
 
 	/* if (!job_ptr_a && job_ptr_b) */
 	/* 	return -1; */
@@ -848,7 +912,7 @@ extern int add_bg_record(List records, List *used_nodes,
 			      "There is an error in your bluegene.conf file.\n"
 			      "I am unable to request %d nodes consisting of "
 			      "%u 32CnBlocks and\n%u 128CnBlocks in one "
-			      "base partition with %u nodes.",
+			      "midplane with %u nodes.",
 			      i, blockreq->small32, blockreq->small128,
 			      bg_conf->mp_cnode_cnt);
 #else
@@ -873,7 +937,7 @@ extern int add_bg_record(List records, List *used_nodes,
 			      "%u 16CNBlocks, %u 32CNBlocks,\n"
 			      "%u 64CNBlocks, %u 128CNBlocks, "
 			      "and %u 256CNBlocks\n"
-			      "in one base partition with %u nodes.",
+			      "in one midplane with %u nodes.",
 			      i, blockreq->small16, blockreq->small32,
 			      blockreq->small64, blockreq->small128,
 			      blockreq->small256, bg_conf->mp_cnode_cnt);

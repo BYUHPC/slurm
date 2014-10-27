@@ -2,7 +2,8 @@ SUBDIRS = cray lua pam perlapi torque sgather sjobexit slurmdb-direct pmi2
 
 EXTRA_DIST = \
 	env_cache_builder.c	\
-	make.slurm.patch	\
+	make-3.81.slurm.patch	\
+	make-4.0.slurm.patch	\
 	mpich1.slurm.patch	\
 	ptrace.patch		\
 	sgather			\

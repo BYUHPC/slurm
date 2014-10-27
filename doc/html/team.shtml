@@ -50,6 +50,7 @@ Lead Slurm developers are:
 <li>Franco Broi (ION)</li>
 <li>Bill Brophy (Bull)</li>
 <li>John Brunelle (Harvard University FAS Research Computing)</li>
+<li>Andrew E. Bruno (University at Buffalo)</li>
 <br>
 <li>Luis Cabellos (Instituto de Fisica de Cantabria, Spain)</li>
 <li>Thomas Cadeau (Bull)</li>
@@ -58,17 +59,21 @@ Lead Slurm developers are:
 <li>Ralph Castain (Intel, Greenplum/EMC, Los Alamos National Laboratory)</li>
 <li>Fran&ccedil;ois Chevallier (CEA)</li>
 <li>Daniel Christians (HP)</li>
+<li>Brian Christiansen (SchedMD)</li>
 <li>Gilles Civario (Bull)</li>
 <li>Chuck Clouston (Bull)</li>
+<li>J.T. Conklin</li>
+<li>Ryan Cox (Brigham Young University)</li>
 <br>
 <li>Yuri D'Elia (Center for Biomedicine, EURAC Research, Italy)</li>
+<li>Ino de Bruijn (SciLifeLab, Sweden)</li>
 <li>Francois Diakhate (CEA, France)</li>
 <li>Daniele Didomizio (EURAC Research, Italy)</li>
 <li>Joseph Donaghy (Lawrence Livermore National Laboratory)</li>
 <li>Chris Dunlap (Lawrence Livermore National Laboratory)</li>
 <br>
 <li>Phil Eckert (Lawrence Livermore National Laboratory)</li>
-<li>Joey Ekstrom (Lawrence Livermore National Laboratory/Bringham Young University)</li>
+<li>Joey Ekstrom (Lawrence Livermore National Laboratory/Brigham Young University)</li>
 <li>Andrew Elwell</li>
 <li>Josh England (TGS Management Corporation)</li>
 <li>Kent Engstr&ouml;m  (National Supercomputer Centre, Sweden)</li>
@@ -105,6 +110,7 @@ Lead Slurm developers are:
 <li>Klaus Joas (University Karlsruhe, Germany)</li>
 <li>Greg Johnson (Los Alamos National Laboratory)</li>
 <li>Magnus Jonsson (Ume&aring; University, Sweden)</li>
+<li>Nicolas Joly (Institut Pasteur, France)</li>
 <li>Matthias Jurenz (ZIH, TU Dresden, Germany)</li>
 <br>
 <li>Jason King (Lawrence Livermore National Laboratory)</li>
@@ -121,9 +127,11 @@ Lead Slurm developers are:
 <li>Piotr Lesnicki (Bull)</li>
 <li>Bernard Li (Genome Sciences Centre, Canada)</li>
 <li>Eric Lin (Bull)</li>
+<li>Pierre Lindenbaum (L'Insitut du Thorax, France)</li>
 <li>Donald Lipari (Lawrence Livermore National Laboratory)</li>
 <br>
 <li>Komoto Masahiro</li>
+<li>L. Shawn Matott (University at Buffalo)</li>
 <li>Steven McDougall (SiCortex)</li>
 <li>Donna Mecozzi (Lawrence Livermore National Laboratory)</li>
 <li>Bj&oslash;rn-Helge Mevik (University of Oslo, Norway)</li>
@@ -178,7 +186,7 @@ Lead Slurm developers are:
 <br>
 <li>Prashanth Tamraparni (HP, India)</li>
 <li>Jimmy Tang (Trinity College, Ireland)</li>
-<li>Kevin Tew (Lawrence Livermore National Laboratory/Bringham Young University)</li>
+<li>Kevin Tew (Lawrence Livermore National Laboratory/Brigham Young University)</li>
 <li>John Thiltges (University of Nebraska-Lincoln)</li>
 <li>Adam Todorski (Rensselaer Polytechnic Institute)</li>
 <li>Stephen Trofinoff (Swiss National Supercomputing Centre)</li>
@@ -199,6 +207,6 @@ Lead Slurm developers are:
 <!-- INDIVIDUALS, PLEASE KEEP IN ALPHABETICAL ORDER -->
 </ul>
 
-<p style="text-align:center;">Last modified 25 April 2014</p>
+<p style="text-align:center;">Last modified 23 July 2014</p>
 
 <!--#include virtual="footer.txt"-->

@@ -717,8 +717,10 @@ static int _attempt_backfill(void)
 				info("backfill: reached end of job queue");
 			break;
 		}
-		if (slurmctld_config.shutdown_time)
+		if (slurmctld_config.shutdown_time) {
+			xfree(job_queue_rec);
 			break;
+		}
 		if (((defer_rpc_cnt > 0) &&
 		     (slurmctld_config.server_thread_count >= defer_rpc_cnt)) ||
 		    ((time(NULL) - sched_start) >= sched_timeout)) {
@@ -769,7 +771,9 @@ static int _attempt_backfill(void)
 
 		xfree(job_queue_rec);
 		if (!IS_JOB_PENDING(job_ptr))
-			continue;	/* started in other partition */
+			continue;	/* started in another partition */
+		if (job_ptr->preempt_in_progress)
+			continue; 	/* scheduled in another partition */
 		if (!avail_front_end(job_ptr))
 			continue;	/* No available frontend for this job */
 		if (job_ptr->array_task_id != NO_VAL) {

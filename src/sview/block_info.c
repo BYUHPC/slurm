@@ -142,7 +142,7 @@ static display_data_t display_data_block[] = {
 	 FALSE, EDIT_NONE, refresh_block, create_model_block, admin_edit_block},
 	{G_TYPE_STRING, SORTID_IMAGERAMDISK, "Image Ioload",
 	 FALSE, EDIT_NONE, refresh_block, create_model_block, admin_edit_block},
-#elif defined HAVE_BGQ
+#else
 	{G_TYPE_STRING, SORTID_USE, NULL, FALSE, EDIT_NONE, refresh_block,
 	 create_model_block, admin_edit_block},
 	{G_TYPE_STRING, SORTID_IMAGEBLRTS, NULL,
@@ -1145,10 +1145,12 @@ display_it:
 		list_iterator_destroy(itr);
 		change_grid_color(grid_button_list, -1, -1,
 				  MAKE_WHITE, true, 0);
-	} else
+	} else {
 		highlight_grid(GTK_TREE_VIEW(display_widget),
 			       SORTID_NODE_INX, SORTID_COLOR_INX,
 			       grid_button_list);
+		gtk_tree_path_free(path);
+	}
 
 	if (view == ERROR_VIEW && display_widget) {
 		gtk_widget_destroy(display_widget);

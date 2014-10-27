@@ -1804,9 +1804,12 @@ static void _slurm_rpc_complete_batch_script(slurm_msg_t * msg)
 	 * ran so we already finished the last instance of the job so
 	 * this would be put on the requeued instance which is
 	 * incorrect.
+	 * NOTE: Do not use IS_JOB_PENDING since that doesn't take
+	 * into account the COMPLETING FLAG which is valid, but not
+	 * always set yet when the step exits normally.
 	 */
 	if (association_based_accounting && job_ptr
-	    && !IS_JOB_PENDING(job_ptr)) {
+	    && (job_ptr->job_state != JOB_PENDING)) {
 		struct step_record batch_step;
 		memset(&batch_step, 0, sizeof(struct step_record));
 		batch_step.job_ptr = job_ptr;
@@ -3508,12 +3511,7 @@ static void _slurm_rpc_resv_show(slurm_msg_t * msg)
 
 	START_TIMER;
 	debug2("Processing RPC: REQUEST_RESERVATION_INFO from uid=%d", uid);
-	if ((slurmctld_conf.private_data & PRIVATE_DATA_RESERVATIONS) &&
-	    (!validate_operator(uid))) {
-		debug2("Security violation, REQUEST_RESERVATION_INFO "
-		       "RPC from uid=%d", uid);
-		slurm_send_rc_msg(msg, ESLURM_ACCESS_DENIED);
-	} else if ((resv_req_msg->last_update - 1) >= last_resv_update) {
+	if ((resv_req_msg->last_update - 1) >= last_resv_update) {
 		debug2("_slurm_rpc_resv_show, no change");
 		slurm_send_rc_msg(msg, SLURM_NO_CHANGE_IN_DATA);
 	} else {
@@ -4532,12 +4530,22 @@ inline static void  _slurm_rpc_accounting_update_msg(slurm_msg_t *msg)
 		slurm_send_rc_msg(msg, EACCES);
 		return;
 	}
+
+	/* Send message back to the caller letting him know we got it.
+	   There is no need to wait since the end result would be the
+	   same if we wait or not since the update has already
+	   happened in the database.
+	*/
+
+	slurm_send_rc_msg(msg, rc);
+
 	if (update_ptr->update_list && list_count(update_ptr->update_list))
 		rc = assoc_mgr_update(update_ptr->update_list);
 
 	END_TIMER2("_slurm_rpc_accounting_update_msg");
 
-	slurm_send_rc_msg(msg, rc);
+	if (rc != SLURM_SUCCESS)
+		error("assoc_mgr_update gave error: %s", slurm_strerror(rc));
 }
 
 /* _slurm_rpc_reboot_nodes - process RPC to schedule nodes reboot */
@@ -4594,6 +4602,10 @@ inline static void _slurm_rpc_reboot_nodes(slurm_msg_t * msg)
 		node_ptr->node_state |= NODE_STATE_MAINT;
 		want_nodes_reboot = true;
 	}
+
+	if (want_nodes_reboot == true)
+		schedule_node_save();
+
 	unlock_slurmctld(node_write_lock);
 	FREE_NULL_BITMAP(bitmap);
 	rc = SLURM_SUCCESS;

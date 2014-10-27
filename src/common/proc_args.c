@@ -795,13 +795,19 @@ search_path(char *cwd, char *cmd, bool check_current_dir, int access_mode)
 	ListIterator i        = NULL;
 	char *path, *fullpath = NULL;
 
-	if (  (cmd[0] == '.' || cmd[0] == '/')
-	   && (access(cmd, access_mode) == 0 ) ) {
+#if defined HAVE_BG && !defined HAVE_BG_L_P
+	/* BGQ's runjob command required a fully qualified path */
+	if ( (cmd[0] == '.' || cmd[0] == '/') &&
+	     (access(cmd, access_mode) == 0 ) ) {
 		if (cmd[0] == '.')
 			xstrfmtcat(fullpath, "%s/", cwd);
 		xstrcat(fullpath, cmd);
 		goto done;
 	}
+#else
+	if ((cmd[0] == '.') || (cmd[0] == '/'))
+		return NULL;
+#endif
 
 	l = _create_path_list();
 	if (l == NULL)
@@ -1167,7 +1173,7 @@ extern void bg_figure_nodes_tasks(int *min_nodes, int *max_nodes,
 				     "for you.",
 				     *ntasks_per_node, node_cnt, ntpn);
 			*ntasks_per_node = ntpn;
-		} else if ((node_cnt * ntpn) > *ntasks) {
+		} else if (!overcommit && ((node_cnt * ntpn) > *ntasks)) {
 			ntpn = (*ntasks + node_cnt - 1) / node_cnt;
 			while (!_check_is_pow_of_2(ntpn))
 				ntpn++;

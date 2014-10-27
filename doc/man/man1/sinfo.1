@@ -299,8 +299,14 @@ List nodes only having the given state(s).  Multiple states
 may be comma separated and the comparison is case insensitive.
 Possible values include (case insensitive): ALLOC, ALLOCATED,
 COMP, COMPLETING, DOWN, DRAIN (for node in DRAINING or DRAINED
-states), DRAINED, DRAINING, FAIL, FAILING, IDLE, MAINT, NO_RESPOND,
-POWER_SAVE, UNK, and UNKNOWN.
+states), DRAINED, DRAINING, ERR, ERROR, FAIL, FAILING, FUTURE, FUTR,
+IDLE, MAINT, MIX, MIXED, NO_RESPOND, NPC, PERFCTRS,
+POWER_DOWN, POWER_UP, RESV, RESERVED, UNK, and UNKNOWN.
+
+Possible states include: allocated, completing, down,
+drained, draining, fail, failing, future, idle, maint, mixed,
+perfctrs, power_down, power_up, reserved, and unknown plus
+
 By default nodes in the specified state are reported whether
 they are responding or not.
 The \fB\-\-dead\fR and \fB\-\-responding\fR options may be
@@ -397,9 +403,11 @@ per job's resource allocation.
 \fBSTATE\fR
 State of the nodes.
 Possible states include: allocated, completing, down,
-drained, draining, fail, failing, idle, and unknown plus
-their abbreviated forms: alloc, comp, donw, drain, drng,
-fail, failg, idle, and unk respectively.
+drained, draining, fail, failing, future, idle, maint, mixed,
+perfctrs, power_down, power_up, reserved, and unknown plus
+Their abbreviated forms: alloc, comp, down, drain, drng,
+fail, failg, futr, idle, maint, mix, npc, pow_dn, pow_up, resv,
+and unk respectively.
 Note that the suffix "*" identifies nodes that are presently
 not responding.
 .TP
@@ -539,15 +547,16 @@ The location of the SLURM configuration file.
 .TP
 \fBSLURM_TIME_FORMAT\fR
 Specify the format used to report time stamps. A value of \fIstandard\fR, the
-default value, generates output in the form "year-month-dateThour:minute:second".
+default value, generates output in the form "year\-month\-dateThour:minute:second".
 A value of \fIrelative\fR returns only "hour:minute:second" if the current day.
 For other dates in the current year it prints the "hour:minute" preceded by
 "Tomorr" (tomorrow), "Ystday" (yesterday), the name of the day for the coming
 week (e.g. "Mon", "Tue", etc.), otherwise the date (e.g. "25 Apr").
 For other years it returns a date month and year without a time (e.g.
-"6 Jun 2012").
-Another suggested value is "%a %T" for a day of week and time stamp (e.g.
-"Mon 12:34:56"). All of the time stamps use a 24 hour format.
+"6 Jun 2012"). All of the time stamps use a 24 hour format.
+
+A valid strftime() format can also be specified. For example, a value of
+"%a %T" will report the day of the week and a time stamp (e.g. "Mon 12:34:56").
 
 .SH "EXAMPLES"
 .eo

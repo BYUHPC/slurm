@@ -898,7 +898,8 @@ int s_p_parse_file(s_p_hashtbl_t *hashtbl, uint32_t *hash_val, char *filename,
 	_keyvalue_regex_init();
 	for (i = 0; ; i++) {
 		if (i == 1) {	/* Long once, on first retry */
-			error("s_p_parse_file: unable to status file \"%s\"",
+			error("s_p_parse_file: unable to status file %s: %m, "
+			      "retrying in 1sec upto 60sec",
 			      filename);
 		}
 		if (i >= 60)	/* Give up after 60 seconds */
@@ -1419,8 +1420,8 @@ extern void transfer_s_p_options(s_p_options_t **full_options,
 	for (op = options; op->key != NULL; op++, cnt++) {
 		xrealloc(*full_options, ((cnt + 1) * sizeof(s_p_options_t)));
 		full_options_ptr = &(*full_options)[cnt];
+		memcpy(full_options_ptr, op, sizeof(s_p_options_t));
 		full_options_ptr->key = xstrdup(op->key);
-		full_options_ptr->type = op->type;
 	}
 	*full_options_cnt = cnt;
 }

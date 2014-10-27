@@ -266,6 +266,7 @@ extern List build_job_queue(bool clear_start, bool backfill)
 	job_queue = list_create(_job_queue_rec_del);
 	job_iterator = list_iterator_create(job_list);
 	while ((job_ptr = (struct job_record *) list_next(job_iterator))) {
+		job_ptr->preempt_in_progress = false;	/* initialize */
 		if (!_job_runnable_test1(job_ptr, clear_start))
 			continue;
 
@@ -551,7 +552,8 @@ next_part:		part_ptr = (struct part_record *)
 			if (!assoc_mgr_fill_in_assoc(acct_db_conn, &assoc_rec,
 						     accounting_enforce,
 						     (slurmdb_association_rec_t **)
-						     &job_ptr->assoc_ptr)) {
+						     &job_ptr->assoc_ptr,
+						     false)) {
 				job_ptr->state_reason = WAIT_NO_REASON;
 				xfree(job_ptr->state_desc);
 				job_ptr->assoc_id = assoc_rec.id;
@@ -950,7 +952,7 @@ extern int schedule(uint32_t job_limit)
 	while (1) {
 		if (fifo_sched) {
 			if (job_ptr && part_iterator &&
-			    IS_JOB_PENDING(job_ptr)) /*started in other part?*/
+			    IS_JOB_PENDING(job_ptr)) /* test job in next part */
 				goto next_part;
 			job_ptr = (struct job_record *) list_next(job_iterator);
 			if (!job_ptr)
@@ -996,9 +998,11 @@ next_part:			part_ptr = (struct part_record *)
 				continue;
 			}
 			if (!IS_JOB_PENDING(job_ptr))
-				continue;  /* started in other partition */
+				continue;  /* started in another partition */
 			job_ptr->part_ptr = part_ptr;
 		}
+		if (job_ptr->preempt_in_progress)
+			continue;	/* scheduled in another partition */
 		if ((time(NULL) - sched_start) >= sched_timeout) {
 			debug("sched: loop taking too long, breaking out");
 			break;
@@ -1102,7 +1106,8 @@ next_part:			part_ptr = (struct part_record *)
 			if (!assoc_mgr_fill_in_assoc(acct_db_conn, &assoc_rec,
 						    accounting_enforce,
 						    (slurmdb_association_rec_t **)
-						    &job_ptr->assoc_ptr)) {
+						     &job_ptr->assoc_ptr,
+						     false)) {
 				job_ptr->state_reason = WAIT_NO_REASON;
 				xfree(job_ptr->state_desc);
 				job_ptr->assoc_id = assoc_rec.id;
@@ -1514,6 +1519,13 @@ extern batch_job_launch_msg_t *build_launch_job_msg(struct job_record *job_ptr,
 	}
 	launch_msg_ptr->environment = get_job_env(job_ptr,
 						  &launch_msg_ptr->envc);
+	if (launch_msg_ptr->environment == NULL) {
+		error("%s: environment missing or corrupted aborting job %u",
+		      __func__, job_ptr->job_id);
+		slurm_free_job_launch_msg(launch_msg_ptr);
+		job_complete(job_ptr->job_id, getuid(), false, true, 0);
+		return NULL;
+	}
 	launch_msg_ptr->job_mem = job_ptr->details->pn_min_memory;
 	launch_msg_ptr->num_cpu_groups = job_ptr->job_resrcs->cpu_array_cnt;
 	launch_msg_ptr->cpus_per_node  = xmalloc(sizeof(uint16_t) *

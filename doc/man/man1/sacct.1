@@ -66,7 +66,7 @@ The default input file is the file named in the
 .TP "10"
 \f3\-a\fP\f3,\fP \f3\-\-allusers\fP
 Displays all users jobs when run by user root or if \fBPrivateData\fP is not
-configurred to \fBjobs\fP.
+configured to \fBjobs\fP.
 Otherwise display the current user's jobs
 .IP
 
@@ -476,13 +476,13 @@ Note: Only in case of exclusive job allocation this value
 reflects the jobs' real energy consumption.
 
 .TP
-\f3cputime\fP
-Formatted number of cpu seconds a process was allocated.
+\f3CPUTime\fP
+Formatted (Elapsed time * CPU) count used by a job or step.
 
 .TP
-\f3cputimeraw\fP
-How much cpu time process was allocated in second format, not formatted
-like above.
+\f3CPUTimeRaw\fP
+Unlike above non formatted (Elapsed time * CPU) count for a job or step.
+Units are cpu-seconds.
 
 .TP
 \f3DerivedExitCode\fP
@@ -526,32 +526,8 @@ When the job became eligible to run.
 
 .TP
 \f3end\fP
-Termination time of the job. Format output is as follows:
-.RS
-.PD "0"
-.HP
-\f2MM/DD\-hh:mm:ss\fP
-.PD
-.RE
-.IP
-as defined by the following:
-.RS
-.TP "10"
-\f2MM\fP
-month
-.TP
-\f2DD\fP
-day
-.TP
-\f2hh\fP
-hours
-.TP
-\f2mm\fP
-minutes
-.TP
-\f2ss\fP
-seconds
-.RE
+Termination time of the job. Format output is, YYYY\-MM\-DDTHH:MM:SS, unless
+changed through the SLURM_TIME_FORMAT environment variable.
 
 .TP
 \f3exitcode\fP
@@ -797,6 +773,26 @@ Workload  Characterization  Key.   Arbitrary  string for grouping orthogonal acc
 \f3wckeyid\fP
 Reference to the wckey.
 
+.SH "ENVIRONMENT VARIABLES"
+.PP
+Some \fBsacct\fR options may
+be set via environment variables. These environment variables,
+along with their corresponding options, are listed below. (Note:
+Commandline options will always override these settings.)
+.TP
+\fBSLURM_TIME_FORMAT\fR
+Specify the format used to report time stamps. A value of \fIstandard\fR, the
+default value, generates output in the form "year\-month\-dateThour:minute:second".
+A value of \fIrelative\fR returns only "hour:minute:second" if the current day.
+For other dates in the current year it prints the "hour:minute" preceded by
+"Tomorr" (tomorrow), "Ystday" (yesterday), the name of the day for the coming
+week (e.g. "Mon", "Tue", etc.), otherwise the date (e.g. "25 Apr").
+For other years it returns a date month and year without a time (e.g.
+"6 Jun 2012"). All of the time stamps use a 24 hour format.
+
+A valid strftime() format can also be specified. For example, a value of
+"%a %T" will report the day of the week and a time stamp (e.g. "Mon 12:34:56").
+
 .SH "EXAMPLES"
 This example illustrates the default invocation of the \f3sacct\fP
 command:
@@ -879,7 +875,7 @@ used with \-S (\-\-starttime) and \-E (\-\-endtime). When the \-T option is
 used, the start time of the job will be the specified
 \-S value if the job was started before the specified time, otherwise
 the time will be the job's start time. The end time will be the specified \-E
-option if the job ends after the specifed time, otherwise it will be
+option if the job ends after the specified time, otherwise it will be
 the jobs end time.
 
 NOTE: If no \-s (\-\-state) option is given sacct will

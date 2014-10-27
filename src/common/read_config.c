@@ -2944,7 +2944,7 @@ _validate_and_set_defaults(slurm_ctl_conf_t *conf, s_p_hashtbl_t *hashtbl)
 	if (!s_p_get_string(&conf->job_comp_loc, "JobCompLoc", hashtbl)) {
 		if (default_storage_loc)
 			conf->job_comp_loc = xstrdup(default_storage_loc);
-		else if (!strcmp(conf->job_comp_type, "job_comp/mysql"))
+		else if (!strcmp(conf->job_comp_type, "jobcomp/mysql"))
 			conf->job_comp_loc = xstrdup(DEFAULT_JOB_COMP_DB);
 		else
 			conf->job_comp_loc = xstrdup(DEFAULT_JOB_COMP_LOC);
@@ -3677,9 +3677,11 @@ _validate_and_set_defaults(slurm_ctl_conf_t *conf, s_p_hashtbl_t *hashtbl)
 		conf->select_type_param = 0;
 
 	/* If not running linear default to be CR_CPU */
-	if (!(slurmctld_conf.select_type_param & (CR_CPU | CR_SOCKET | CR_CORE))
-	    && strcmp(conf->select_type, "select/linear"))
-		slurmctld_conf.select_type_param |= CR_CPU;
+	if (!(conf->select_type_param & (CR_CPU | CR_SOCKET | CR_CORE))
+	    && (!strcmp(conf->select_type, "select/cons_res") ||
+		!strcmp(conf->select_type, "select/serial") ||
+		(conf->select_type_param & CR_OTHER_CONS_RES)))
+		conf->select_type_param |= CR_CPU;
 
 	if (!s_p_get_string( &conf->slurm_user_name, "SlurmUser", hashtbl)) {
 		conf->slurm_user_name = xstrdup("root");

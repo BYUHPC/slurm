@@ -399,7 +399,7 @@ batch_finish(stepd_step_rec_t *job, int rc)
 		   (job->stepid == SLURM_BATCH_SCRIPT)) {
 		verbose("job %u completed with slurm_rc = %d, job_rc = %d",
 			job->jobid, rc, step_complete.step_rc);
-		_send_complete_batch_script_msg(job, rc, job->task[0]->estatus);
+		_send_complete_batch_script_msg(job, rc, step_complete.step_rc);
 	} else {
 		_wait_for_children_slurmstepd(job);
 		verbose("job %u.%u completed with slurm_rc = %d, job_rc = %d",
@@ -458,11 +458,6 @@ cleanup:
 
 	if (job->aborted)
 		verbose("job %u abort complete", job->jobid);
-	else if (msg->step_id == SLURM_BATCH_SCRIPT) {
-		_send_complete_batch_script_msg(
-			job, ESLURMD_CREATE_BATCH_DIR_ERROR, -1);
-	} else
-		_send_step_complete_msgs(job);
 
 	/* Do not purge directory until slurmctld is notified of batch job
 	 * completion to avoid race condition with slurmd registering missing
@@ -470,6 +465,8 @@ cleanup:
 	if (job->batchdir && (rmdir(job->batchdir) < 0))
 		error("rmdir(%s): %m",  job->batchdir);
 	xfree(job->batchdir);
+
+	errno = ESLURMD_CREATE_BATCH_DIR_ERROR;
 
 	return NULL;
 }
