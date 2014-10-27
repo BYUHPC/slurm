@@ -1,6 +1,6 @@
-# Slurm 14.03.6 + LEVEL_BASED
+# Slurm 14.03.9 + LEVEL_BASED
 
-This Slurm fork contains the code for the LEVEL_BASED prioritization mechanism.  It has been committed to Slurm's *master* branch for inclusion in 14.11.
+This Slurm fork contains the code for the LEVEL_BASED prioritization mechanism.  It was committed to Slurm's *master* branch for inclusion in 14.11 but was superseded by our new Fair Tree algorithm.  The results are the same in both algorithms but Fair Tree is a much cleaner approach.
 
 ### Documentation
 
@@ -12,7 +12,7 @@ This Slurm fork contains the code for the LEVEL_BASED prioritization mechanism. 
 
 ### Version
 
-Current version:  14.03.6 + LEVEL_BASED code.
+Current version:  14.03.9 + LEVEL_BASED code.
 
 Original version:  The *level_based* branch was originally branched from *slurm-14.03* when 14.03.4-2 was tagged and has since had updates merged in.
 
